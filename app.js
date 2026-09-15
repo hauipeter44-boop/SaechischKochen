@@ -34,6 +34,11 @@ const recipeRawText = document.getElementById("recipeRawText");
 const recipeSaveBtn = document.getElementById("recipeSaveBtn");
 const recipeDeleteBtn = document.getElementById("recipeDeleteBtn");
 
+const ingredientsListEl = document.getElementById("ingredientsList");
+const addIngredientBtn = document.getElementById("addIngredientBtn");
+const stepsListEl = document.getElementById("stepsList");
+const addStepBtn = document.getElementById("addStepBtn");
+
 // --- Zustand ---
 let allCategories = [];
 let allRecipes = [];
@@ -42,6 +47,8 @@ let activeMenuCategory = null;
 let modalOnSave = null;
 let viewState = "list"; // "list" oder "recipe"
 let currentRecipeId = null;
+let workingIngredients = []; // { amount, unit, name } – nur während des Bearbeitens
+let workingSteps = [];       // Liste von Text-Strings – nur während des Bearbeitens
 
 function currentParentId() {
   return path[path.length - 1].id;
@@ -138,6 +145,106 @@ function render() {
   });
 }
 
+// --- Zutaten-Bearbeitung ---
+function renderIngredients() {
+  ingredientsListEl.innerHTML = "";
+  workingIngredients.forEach((ing, index) => {
+    const row = document.createElement("div");
+    row.className = "ingredient-row";
+
+    const amountInput = document.createElement("input");
+    amountInput.type = "text";
+    amountInput.className = "ing-amount";
+    amountInput.placeholder = "Menge";
+    amountInput.value = ing.amount || "";
+    amountInput.addEventListener("input", (e) => {
+      workingIngredients[index].amount = e.target.value;
+    });
+
+    const unitInput = document.createElement("input");
+    unitInput.type = "text";
+    unitInput.className = "ing-unit";
+    unitInput.placeholder = "Einheit";
+    unitInput.value = ing.unit || "";
+    unitInput.addEventListener("input", (e) => {
+      workingIngredients[index].unit = e.target.value;
+    });
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.className = "ing-name";
+    nameInput.placeholder = "Zutat";
+    nameInput.value = ing.name || "";
+    nameInput.addEventListener("input", (e) => {
+      workingIngredients[index].name = e.target.value;
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "ing-remove";
+    removeBtn.setAttribute("aria-label", "Zutat entfernen");
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      workingIngredients.splice(index, 1);
+      renderIngredients();
+    });
+
+    row.appendChild(amountInput);
+    row.appendChild(unitInput);
+    row.appendChild(nameInput);
+    row.appendChild(removeBtn);
+    ingredientsListEl.appendChild(row);
+  });
+}
+
+addIngredientBtn.addEventListener("click", () => {
+  workingIngredients.push({ amount: "", unit: "", name: "" });
+  renderIngredients();
+  const lastRow = ingredientsListEl.lastElementChild;
+  if (lastRow) lastRow.querySelector(".ing-name").focus();
+});
+
+// --- Schritte-Bearbeitung ---
+function renderSteps() {
+  stepsListEl.innerHTML = "";
+  workingSteps.forEach((text, index) => {
+    const row = document.createElement("div");
+    row.className = "step-row";
+
+    const numberSpan = document.createElement("span");
+    numberSpan.className = "step-number";
+    numberSpan.textContent = (index + 1) + ".";
+
+    const textInput = document.createElement("textarea");
+    textInput.className = "step-text";
+    textInput.rows = 2;
+    textInput.value = text || "";
+    textInput.addEventListener("input", (e) => {
+      workingSteps[index] = e.target.value;
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "ing-remove";
+    removeBtn.setAttribute("aria-label", "Schritt entfernen");
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      workingSteps.splice(index, 1);
+      renderSteps();
+    });
+
+    row.appendChild(numberSpan);
+    row.appendChild(textInput);
+    row.appendChild(removeBtn);
+    stepsListEl.appendChild(row);
+  });
+}
+
+addStepBtn.addEventListener("click", () => {
+  workingSteps.push("");
+  renderSteps();
+  const lastRow = stepsListEl.lastElementChild;
+  if (lastRow) lastRow.querySelector(".step-text").focus();
+});
+
 // --- Rezept-Ansicht ---
 function openRecipe(id) {
   const recipe = allRecipes.find(r => r.id === id);
@@ -153,6 +260,11 @@ function openRecipe(id) {
   recipeTitleInput.value = recipe.title || "";
   recipeRawText.value = recipe.rawText || "";
   favoriteBtn.textContent = recipe.favorite ? "★" : "☆";
+
+  workingIngredients = (recipe.ingredients || []).map(i => ({ ...i }));
+  workingSteps = [...(recipe.steps || [])];
+  renderIngredients();
+  renderSteps();
 }
 
 favoriteBtn.addEventListener("click", async () => {
@@ -169,9 +281,24 @@ recipeSaveBtn.addEventListener("click", async () => {
     recipeTitleInput.focus();
     return;
   }
+
+  const cleanedIngredients = workingIngredients
+    .filter(i => (i.name || "").trim() !== "")
+    .map(i => ({
+      amount: (i.amount || "").trim(),
+      unit: (i.unit || "").trim(),
+      name: i.name.trim()
+    }));
+
+  const cleanedSteps = workingSteps
+    .map(s => (s || "").trim())
+    .filter(s => s !== "");
+
   await updateDoc(doc(db, "recipes", currentRecipeId), {
     title,
     rawText: recipeRawText.value,
+    ingredients: cleanedIngredients,
+    steps: cleanedSteps,
     updatedAt: serverTimestamp()
   });
   render();
@@ -248,6 +375,8 @@ addRecipeBtn.addEventListener("click", () => {
     const ref = await addDoc(collection(db, "recipes"), {
       title,
       rawText: "",
+      ingredients: [],
+      steps: [],
       favorite: false,
       categoryIds: currentParentId() ? [currentParentId()] : [],
       createdAt: serverTimestamp(),

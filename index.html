@@ -20,8 +20,18 @@
     <div class="field">
       <input id="recipeTitleInput" type="text" class="title-input" placeholder="Titel" autocomplete="off">
     </div>
-    <label class="field-label" for="recipeRawText">Rohrezept</label>
+
+    <label class="field-label">Zutaten</label>
+    <div id="ingredientsList" class="ingredients-list"></div>
+    <button id="addIngredientBtn" class="btn-add">+ Zutat hinzufügen</button>
+
+    <label class="field-label" style="margin-top:20px;">Zubereitung</label>
+    <div id="stepsList" class="steps-list"></div>
+    <button id="addStepBtn" class="btn-add">+ Schritt hinzufügen</button>
+
+    <label class="field-label" style="margin-top:20px;">Rohrezept</label>
     <textarea id="recipeRawText" class="raw-textarea" placeholder="Zutaten, Mengen, Zubereitung – so wie du es hast, unformatiert."></textarea>
+
     <div class="recipe-actions">
       <button id="recipeSaveBtn" class="btn-primary">Speichern</button>
       <button id="recipeDeleteBtn" class="btn-danger">Rezept löschen</button>

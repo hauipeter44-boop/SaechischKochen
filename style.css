@@ -115,7 +115,7 @@ html, body {
 
 .raw-textarea {
   width: 100%;
-  min-height: 240px;
+  min-height: 120px;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
@@ -125,6 +125,83 @@ html, body {
   background: var(--surface);
   color: var(--text);
   resize: vertical;
+}
+
+.ingredients-list, .steps-list {
+  margin-bottom: 8px;
+}
+
+.ingredient-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.ingredient-row input {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  background: var(--surface);
+  color: var(--text);
+  min-width: 0;
+}
+
+.ing-amount { width: 56px; }
+.ing-unit { width: 64px; }
+.ing-name { flex: 1; }
+
+.step-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+
+.step-number {
+  padding-top: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.step-text {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+  min-width: 0;
+}
+
+.ing-remove {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.btn-add {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--accent);
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 4px;
 }
 
 .recipe-actions {
