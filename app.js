@@ -59,6 +59,21 @@ const entryText = document.getElementById("entryText");
 const entrySave = document.getElementById("entrySave");
 const entryCancel = document.getElementById("entryCancel");
 
+const batchesListEl = document.getElementById("batchesList");
+const addBatchBtn = document.getElementById("addBatchBtn");
+const batchView = document.getElementById("batchView");
+const batchTitle = document.getElementById("batchTitle");
+const batchMeta = document.getElementById("batchMeta");
+const batchFinishBtn = document.getElementById("batchFinishBtn");
+const batchDeleteBtn = document.getElementById("batchDeleteBtn");
+const batchEntriesListEl = document.getElementById("batchEntriesList");
+const addBatchEntryBtn = document.getElementById("addBatchEntryBtn");
+const batchEntryOverlay = document.getElementById("batchEntryOverlay");
+const batchEntryTemp = document.getElementById("batchEntryTemp");
+const batchEntryNote = document.getElementById("batchEntryNote");
+const batchEntrySave = document.getElementById("batchEntrySave");
+const batchEntryCancel = document.getElementById("batchEntryCancel");
+
 const tabLibrary = document.getElementById("tabLibrary");
 const tabKnowledge = document.getElementById("tabKnowledge");
 const knowledgeView = document.getElementById("knowledgeView");
@@ -95,6 +110,11 @@ let allEntries = [];         // alle Hinweise/Erfahrungen, live von Firestore
 let activeTab = "library";   // "library" oder "knowledge"
 let currentPhotos = [];      // Fotos des gerade geöffneten Rezepts
 let unsubscribePhotos = null;
+let currentBatches = [];         // Fermentationsbatches des gerade geöffneten Rezepts
+let unsubscribeBatches = null;
+let currentBatchId = null;
+let currentBatchEntries = [];    // Tagebucheinträge des gerade geöffneten Batches
+let unsubscribeBatchEntries = null;
 
 function formatDate(ts) {
   if (!ts || !ts.toDate) return "";
@@ -127,6 +147,8 @@ function entriesOf(recipeId) {
 // --- Listen-Ansicht (Kategorien + Rezepte der aktuellen Ebene) ---
 function render() {
   if (unsubscribePhotos) { unsubscribePhotos(); unsubscribePhotos = null; }
+  if (unsubscribeBatches) { unsubscribeBatches(); unsubscribeBatches = null; }
+  if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
   viewState = "list";
   currentRecipeId = null;
   recipeView.hidden = true;
@@ -383,10 +405,13 @@ entrySave.addEventListener("click", async () => {
 // --- Tab-Leiste ---
 function hideAllViews() {
   if (unsubscribePhotos) { unsubscribePhotos(); unsubscribePhotos = null; }
+  if (unsubscribeBatches) { unsubscribeBatches(); unsubscribeBatches = null; }
+  if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
   listEl.hidden = true;
   recipeView.hidden = true;
   knowledgeView.hidden = true;
   searchView.hidden = true;
+  batchView.hidden = true;
 }
 
 function setActiveTabButton(tab) {
@@ -625,12 +650,20 @@ exportBtn.addEventListener("click", async () => {
     const photosSnapshot = await getDocs(collection(db, "photos"));
     const photosForExport = photosSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
+    const batchesSnapshot = await getDocs(collection(db, "fermentationBatches"));
+    const batchesForExport = batchesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const batchEntriesSnapshot = await getDocs(collection(db, "fermentationEntries"));
+    const batchEntriesForExport = batchEntriesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
     const data = serializeForExport({
       exportedAt: new Date().toISOString(),
       categories: allCategories,
       recipes: allRecipes,
       knowledgeEntries: allEntries,
-      photos: photosForExport
+      photos: photosForExport,
+      fermentationBatches: batchesForExport,
+      fermentationEntries: batchEntriesForExport
     });
 
     const json = JSON.stringify(data, null, 2);
@@ -850,6 +883,204 @@ photoFileInput.addEventListener("change", async () => {
   }
 });
 
+// --- Fermentation ---
+function formatDateStr(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function subscribeBatchesForRecipe(recipeId) {
+  if (unsubscribeBatches) { unsubscribeBatches(); unsubscribeBatches = null; }
+  const q = query(collection(db, "fermentationBatches"), where("recipeId", "==", recipeId));
+  unsubscribeBatches = onSnapshot(q, (snapshot) => {
+    currentBatches = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.batchNumber || 0) - (b.batchNumber || 0));
+    if (viewState === "recipe") renderBatches();
+  });
+}
+
+function renderBatches() {
+  batchesListEl.innerHTML = "";
+  if (currentBatches.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "entries-empty";
+    empty.textContent = "Noch kein Fermentationsbatch gestartet.";
+    batchesListEl.appendChild(empty);
+    return;
+  }
+  currentBatches.forEach(batch => {
+    const row = document.createElement("button");
+    row.className = "knowledge-row";
+
+    const header = document.createElement("div");
+    header.className = "entry-header";
+
+    const badge = document.createElement("span");
+    badge.className = "entry-badge";
+    badge.textContent = "Batch #" + batch.batchNumber;
+
+    const status = document.createElement("span");
+    status.className = "entry-date";
+    status.textContent = batch.status || "Aktiv";
+
+    header.appendChild(badge);
+    header.appendChild(status);
+
+    const startInfo = document.createElement("p");
+    startInfo.className = "entry-text";
+    startInfo.textContent = "Gestartet: " + formatDateStr(batch.startDate);
+
+    row.appendChild(header);
+    row.appendChild(startInfo);
+    row.addEventListener("click", () => openBatch(batch.id));
+    batchesListEl.appendChild(row);
+  });
+}
+
+addBatchBtn.addEventListener("click", async () => {
+  const maxNum = currentBatches.reduce((m, b) => Math.max(m, b.batchNumber || 0), 0);
+  const ref = await addDoc(collection(db, "fermentationBatches"), {
+    recipeId: currentRecipeId,
+    batchNumber: maxNum + 1,
+    startDate: new Date().toISOString(),
+    status: "Aktiv",
+    createdAt: serverTimestamp()
+  });
+  openBatch(ref.id);
+});
+
+function openBatch(batchId) {
+  const batch = currentBatches.find(b => b.id === batchId);
+  if (!batch) return;
+  currentBatchId = batchId;
+  viewState = "batch";
+  recipeView.hidden = true;
+  batchView.hidden = false;
+  addBtn.hidden = true;
+  favoriteBtn.hidden = true;
+  backBtn.hidden = false;
+  titleEl.textContent = "Fermentation";
+  batchTitle.textContent = "Batch #" + batch.batchNumber;
+  batchMeta.textContent = "Gestartet: " + formatDateStr(batch.startDate) + " · " + (batch.status || "Aktiv");
+  batchFinishBtn.textContent = batch.status === "Abgeschlossen" ? "Als aktiv markieren" : "Als abgeschlossen markieren";
+  subscribeBatchEntries(batchId);
+}
+
+function subscribeBatchEntries(batchId) {
+  if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
+  const q = query(collection(db, "fermentationEntries"), where("batchId", "==", batchId));
+  unsubscribeBatchEntries = onSnapshot(q, (snapshot) => {
+    currentBatchEntries = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const at = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+        const bt = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+        return at - bt;
+      });
+    if (viewState === "batch") renderBatchEntries();
+  });
+}
+
+function renderBatchEntries() {
+  batchEntriesListEl.innerHTML = "";
+  if (currentBatchEntries.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "entries-empty";
+    empty.textContent = "Noch keine Tagebucheinträge.";
+    batchEntriesListEl.appendChild(empty);
+    return;
+  }
+  currentBatchEntries.forEach(entry => {
+    const row = document.createElement("div");
+    row.className = "entry-row";
+
+    const header = document.createElement("div");
+    header.className = "entry-header";
+
+    const badge = document.createElement("span");
+    badge.className = "entry-badge";
+    badge.textContent = (entry.temperature !== null && entry.temperature !== undefined && entry.temperature !== "")
+      ? entry.temperature + " °C"
+      : "Eintrag";
+
+    const date = document.createElement("span");
+    date.className = "entry-date";
+    date.textContent = formatDate(entry.createdAt);
+
+    header.appendChild(badge);
+    header.appendChild(date);
+
+    const text = document.createElement("p");
+    text.className = "entry-text";
+    text.textContent = entry.note || "";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "entry-remove";
+    removeBtn.textContent = "Löschen";
+    removeBtn.addEventListener("click", async () => {
+      if (confirm("Diesen Eintrag wirklich löschen?")) {
+        await deleteDoc(doc(db, "fermentationEntries", entry.id));
+      }
+    });
+
+    row.appendChild(header);
+    row.appendChild(text);
+    row.appendChild(removeBtn);
+    batchEntriesListEl.appendChild(row);
+  });
+}
+
+addBatchEntryBtn.addEventListener("click", () => {
+  batchEntryTemp.value = "";
+  batchEntryNote.value = "";
+  batchEntryOverlay.hidden = false;
+  batchEntryNote.focus();
+});
+
+batchEntryCancel.addEventListener("click", () => {
+  batchEntryOverlay.hidden = true;
+});
+
+batchEntrySave.addEventListener("click", async () => {
+  const note = batchEntryNote.value.trim();
+  const tempRaw = batchEntryTemp.value.trim();
+  if (!note && !tempRaw) {
+    batchEntryNote.focus();
+    return;
+  }
+  batchEntryOverlay.hidden = true;
+  await addDoc(collection(db, "fermentationEntries"), {
+    batchId: currentBatchId,
+    note,
+    temperature: tempRaw ? parseAmount(tempRaw) : null,
+    createdAt: serverTimestamp()
+  });
+});
+
+batchFinishBtn.addEventListener("click", async () => {
+  const batch = currentBatches.find(b => b.id === currentBatchId);
+  if (!batch) return;
+  const newStatus = batch.status === "Abgeschlossen" ? "Aktiv" : "Abgeschlossen";
+  await updateDoc(doc(db, "fermentationBatches", currentBatchId), { status: newStatus });
+  batchFinishBtn.textContent = newStatus === "Abgeschlossen" ? "Als aktiv markieren" : "Als abgeschlossen markieren";
+  batchMeta.textContent = "Gestartet: " + formatDateStr(batch.startDate) + " · " + newStatus;
+});
+
+batchDeleteBtn.addEventListener("click", async () => {
+  if (confirm("Diesen Batch inklusive Tagebuch wirklich löschen?")) {
+    const entriesToDelete = currentBatchEntries.slice();
+    await deleteDoc(doc(db, "fermentationBatches", currentBatchId));
+    await Promise.all(entriesToDelete.map(e => deleteDoc(doc(db, "fermentationEntries", e.id))));
+    if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
+    viewState = "recipe";
+    batchView.hidden = true;
+    recipeView.hidden = false;
+    titleEl.textContent = "Rezept";
+  }
+});
+
 // --- Rezept-Ansicht ---
 function openRecipe(id) {
   const recipe = allRecipes.find(r => r.id === id);
@@ -872,6 +1103,7 @@ function openRecipe(id) {
   renderSteps();
   renderEntries();
   subscribePhotosForRecipe(id);
+  subscribeBatchesForRecipe(id);
 }
 
 favoriteBtn.addEventListener("click", async () => {
@@ -915,9 +1147,15 @@ recipeDeleteBtn.addEventListener("click", async () => {
   if (confirm("Dieses Rezept wirklich löschen?")) {
     const relatedPhotos = currentPhotos.slice();
     const relatedEntries = entriesOf(currentRecipeId);
+    const relatedBatches = currentBatches.slice();
     await deleteDoc(doc(db, "recipes", currentRecipeId));
     await Promise.all(relatedPhotos.map(p => deleteDoc(doc(db, "photos", p.id))));
     await Promise.all(relatedEntries.map(e => deleteDoc(doc(db, "knowledgeEntries", e.id))));
+    for (const batch of relatedBatches) {
+      const batchEntriesSnapshot = await getDocs(query(collection(db, "fermentationEntries"), where("batchId", "==", batch.id)));
+      await Promise.all(batchEntriesSnapshot.docs.map(d => deleteDoc(doc(db, "fermentationEntries", d.id))));
+      await deleteDoc(doc(db, "fermentationBatches", batch.id));
+    }
     render();
   }
 });
@@ -959,6 +1197,14 @@ function subscribeEntries() {
 
 // --- Navigation ---
 backBtn.addEventListener("click", () => {
+  if (viewState === "batch") {
+    if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
+    viewState = "recipe";
+    batchView.hidden = true;
+    recipeView.hidden = false;
+    titleEl.textContent = "Rezept";
+    return;
+  }
   if (viewState === "recipe") {
     render();
     return;

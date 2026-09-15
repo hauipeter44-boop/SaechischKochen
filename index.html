@@ -53,6 +53,10 @@
     <div id="entriesList" class="entries-list"></div>
     <button id="addEntryBtn" class="btn-add">+ Eintrag hinzufügen</button>
 
+    <label class="field-label" style="margin-top:20px;">Fermentation</label>
+    <div id="batchesList" class="entries-list"></div>
+    <button id="addBatchBtn" class="btn-add">+ Neuen Batch starten</button>
+
     <label class="field-label" style="margin-top:20px;">Rohrezept</label>
     <textarea id="recipeRawText" class="raw-textarea" placeholder="Zutaten, Mengen, Zubereitung – so wie du es hast, unformatiert."></textarea>
 
@@ -60,6 +64,20 @@
       <button id="recipeSaveBtn" class="btn-primary">Speichern</button>
       <button id="recipeDeleteBtn" class="btn-danger">Rezept löschen</button>
     </div>
+  </main>
+
+  <main id="batchView" class="recipe-view" hidden>
+    <h2 id="batchTitle" style="margin:0 0 4px; font-size:19px; font-weight:600;">Batch</h2>
+    <p id="batchMeta" class="entry-date" style="margin:0 0 16px;"></p>
+
+    <div class="modal-actions" style="margin-bottom:20px;">
+      <button id="batchFinishBtn" class="btn-secondary">Als abgeschlossen markieren</button>
+      <button id="batchDeleteBtn" class="btn-danger">Batch löschen</button>
+    </div>
+
+    <label class="field-label">Tagebuch</label>
+    <div id="batchEntriesList" class="entries-list"></div>
+    <button id="addBatchEntryBtn" class="btn-add">+ Tagebucheintrag hinzufügen</button>
   </main>
 
   <main id="knowledgeView" class="knowledge-view" hidden>
@@ -162,6 +180,20 @@
     </div>
   </div>
 
+  </div>
+
+  <div id="batchEntryOverlay" class="overlay" hidden>
+    <div class="modal">
+      <h2>Tagebucheintrag</h2>
+      <label class="field-label">Temperatur (°C, optional)</label>
+      <input id="batchEntryTemp" type="text" inputmode="decimal" class="scale-factor-input" placeholder="z. B. 22">
+      <label class="field-label" style="margin-top:12px;">Notiz</label>
+      <textarea id="batchEntryNote" class="entry-textarea" placeholder="Was ist dir aufgefallen?"></textarea>
+      <div class="modal-actions">
+        <button id="batchEntryCancel" class="btn-secondary">Abbrechen</button>
+        <button id="batchEntrySave" class="btn-primary">Speichern</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="app.js"></script>
