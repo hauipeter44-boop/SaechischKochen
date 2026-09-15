@@ -386,6 +386,93 @@ html, body {
   line-height: 1.4;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.section-header .field-label { margin-bottom: 0; }
+
+.scale-open-btn {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.scale-modal { max-height: 80vh; overflow-y: auto; }
+
+.scale-factor-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 16px;
+  margin-bottom: 4px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.scale-reference-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.scale-reference-select {
+  flex: 1;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.scale-reference-input {
+  width: 80px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn-secondary.small {
+  flex: none;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.scale-ingredients-list {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.scale-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+}
+
+.scale-row:last-child { border-bottom: none; }
+
+.scale-row-value {
+  color: var(--text-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 .recipe-actions {
   display: flex;
   flex-direction: column;

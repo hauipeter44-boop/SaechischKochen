@@ -59,6 +59,15 @@ const searchView = document.getElementById("searchView");
 const searchResultsEl = document.getElementById("searchResults");
 const globalSearchInput = document.getElementById("globalSearchInput");
 
+const scaleOpenBtn = document.getElementById("scaleOpenBtn");
+const scaleOverlay = document.getElementById("scaleOverlay");
+const scaleFactorInput = document.getElementById("scaleFactorInput");
+const scaleReferenceSelect = document.getElementById("scaleReferenceSelect");
+const scaleReferenceAmount = document.getElementById("scaleReferenceAmount");
+const scaleReferenceApply = document.getElementById("scaleReferenceApply");
+const scaleIngredientsListEl = document.getElementById("scaleIngredientsList");
+const scaleClose = document.getElementById("scaleClose");
+
 // --- Zustand ---
 let allCategories = [];
 let allRecipes = [];
@@ -571,6 +580,102 @@ function goToCategoryFromSearch(categoryId) {
 }
 
 globalSearchInput.addEventListener("input", renderSearchResults);
+
+// --- Mengenrechner ---
+function parseAmount(str) {
+  if (!str) return null;
+  const normalized = String(str).trim().replace(",", ".");
+  const fractionMatch = normalized.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (fractionMatch) {
+    return parseInt(fractionMatch[1], 10) / parseInt(fractionMatch[2], 10);
+  }
+  const num = parseFloat(normalized);
+  return isNaN(num) ? null : num;
+}
+
+function formatAmount(num) {
+  if (Number.isInteger(num)) return String(num);
+  return String(Math.round(num * 100) / 100);
+}
+
+function openScaleCalculator() {
+  scaleFactorInput.value = "1";
+  scaleReferenceAmount.value = "";
+  populateScaleReferenceSelect();
+  renderScaleIngredients(1);
+  scaleOverlay.hidden = false;
+}
+
+function populateScaleReferenceSelect() {
+  scaleReferenceSelect.innerHTML = "";
+  workingIngredients
+    .filter(i => (i.name || "").trim() !== "" && parseAmount(i.amount) !== null)
+    .forEach(ing => {
+      const opt = document.createElement("option");
+      opt.value = ing.name;
+      opt.textContent = ing.name + " (" + ing.amount + (ing.unit ? " " + ing.unit : "") + ")";
+      scaleReferenceSelect.appendChild(opt);
+    });
+}
+
+function renderScaleIngredients(factor) {
+  scaleIngredientsListEl.innerHTML = "";
+  const ingredients = workingIngredients.filter(i => (i.name || "").trim() !== "");
+
+  if (ingredients.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "entries-empty";
+    empty.textContent = "Erst Zutaten mit Mengenangabe hinzufügen.";
+    scaleIngredientsListEl.appendChild(empty);
+    return;
+  }
+
+  ingredients.forEach(ing => {
+    const row = document.createElement("div");
+    row.className = "scale-row";
+
+    const label = document.createElement("span");
+    label.textContent = ing.name;
+
+    const value = document.createElement("span");
+    value.className = "scale-row-value";
+    const num = parseAmount(ing.amount);
+    if (num === null) {
+      value.textContent = ing.amount ? ing.amount + (ing.unit ? " " + ing.unit : "") : "—";
+    } else {
+      value.textContent = formatAmount(num * factor) + (ing.unit ? " " + ing.unit : "");
+    }
+
+    row.appendChild(label);
+    row.appendChild(value);
+    scaleIngredientsListEl.appendChild(row);
+  });
+}
+
+scaleOpenBtn.addEventListener("click", openScaleCalculator);
+
+scaleFactorInput.addEventListener("input", () => {
+  const factor = parseAmount(scaleFactorInput.value);
+  if (factor !== null && factor > 0) {
+    renderScaleIngredients(factor);
+  }
+});
+
+scaleReferenceApply.addEventListener("click", () => {
+  const refName = scaleReferenceSelect.value;
+  const refIngredient = workingIngredients.find(i => i.name === refName);
+  if (!refIngredient) return;
+  const originalNum = parseAmount(refIngredient.amount);
+  const targetNum = parseAmount(scaleReferenceAmount.value);
+  if (originalNum === null || targetNum === null || originalNum <= 0) return;
+  const factor = targetNum / originalNum;
+  scaleFactorInput.value = formatAmount(factor);
+  renderScaleIngredients(factor);
+});
+
+scaleClose.addEventListener("click", () => {
+  scaleOverlay.hidden = true;
+});
 
 // --- Rezept-Ansicht ---
 function openRecipe(id) {

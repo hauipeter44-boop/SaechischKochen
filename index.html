@@ -21,7 +21,10 @@
       <input id="recipeTitleInput" type="text" class="title-input" placeholder="Titel" autocomplete="off">
     </div>
 
-    <label class="field-label">Zutaten</label>
+    <div class="section-header">
+      <label class="field-label">Zutaten</label>
+      <button id="scaleOpenBtn" class="scale-open-btn">Menge anpassen</button>
+    </div>
     <div id="ingredientsList" class="ingredients-list"></div>
     <button id="addIngredientBtn" class="btn-add">+ Zutat hinzufügen</button>
 
@@ -115,6 +118,28 @@
       <div class="modal-actions">
         <button id="entryCancel" class="btn-secondary">Abbrechen</button>
         <button id="entrySave" class="btn-primary">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scaleOverlay" class="overlay" hidden>
+    <div class="modal scale-modal">
+      <h2>Menge anpassen</h2>
+
+      <label class="field-label">Faktor</label>
+      <input id="scaleFactorInput" type="text" inputmode="decimal" class="scale-factor-input" value="1" placeholder="z. B. 1.5">
+
+      <label class="field-label" style="margin-top:12px;">oder an einer Zutat ausrichten</label>
+      <div class="scale-reference-row">
+        <select id="scaleReferenceSelect" class="scale-reference-select"></select>
+        <input id="scaleReferenceAmount" type="text" inputmode="decimal" class="scale-reference-input" placeholder="neue Menge">
+        <button id="scaleReferenceApply" class="btn-secondary small">Anwenden</button>
+      </div>
+
+      <div id="scaleIngredientsList" class="scale-ingredients-list"></div>
+
+      <div class="modal-actions">
+        <button id="scaleClose" class="btn-primary">Fertig</button>
       </div>
     </div>
   </div>
