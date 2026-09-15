@@ -11,9 +11,22 @@
     <button id="backBtn" class="icon-btn" hidden aria-label="Zurück">‹</button>
     <h1 id="pageTitle">Kategorien</h1>
     <button id="addBtn" class="icon-btn" aria-label="Hinzufügen">+</button>
+    <button id="favoriteBtn" class="icon-btn" hidden aria-label="Favorit">☆</button>
   </header>
 
   <main id="list" class="list"></main>
+
+  <main id="recipeView" class="recipe-view" hidden>
+    <div class="field">
+      <input id="recipeTitleInput" type="text" class="title-input" placeholder="Titel" autocomplete="off">
+    </div>
+    <label class="field-label" for="recipeRawText">Rohrezept</label>
+    <textarea id="recipeRawText" class="raw-textarea" placeholder="Zutaten, Mengen, Zubereitung – so wie du es hast, unformatiert."></textarea>
+    <div class="recipe-actions">
+      <button id="recipeSaveBtn" class="btn-primary">Speichern</button>
+      <button id="recipeDeleteBtn" class="btn-danger">Rezept löschen</button>
+    </div>
+  </main>
 
   <div id="modalOverlay" class="overlay" hidden>
     <div class="modal">
@@ -33,6 +46,14 @@
       <button id="menuDown" class="sheet-btn">Nach unten verschieben</button>
       <button id="menuDelete" class="sheet-btn danger">Löschen</button>
       <button id="menuCancel" class="sheet-btn cancel">Abbrechen</button>
+    </div>
+  </div>
+
+  <div id="addChoiceOverlay" class="overlay" hidden>
+    <div class="sheet">
+      <button id="addCategoryBtn" class="sheet-btn">Neue Kategorie</button>
+      <button id="addRecipeBtn" class="sheet-btn">Neues Rezept</button>
+      <button id="addCancelBtn" class="sheet-btn cancel">Abbrechen</button>
     </div>
   </div>
 
