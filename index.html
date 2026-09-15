@@ -33,6 +33,18 @@
       <input id="recipeTitleInput" type="text" class="title-input" placeholder="Titel" autocomplete="off">
     </div>
 
+    <div id="parentBanner" class="parent-banner" hidden>
+      <button id="parentBannerBtn" class="parent-banner-btn"></button>
+      <label class="field-label" style="margin-top:10px;">Was ist anders? (im Vergleich zum Grundrezept)</label>
+      <textarea id="changeNotesInput" class="entry-textarea" placeholder="z. B. mehr Ingwer, weniger Zucker"></textarea>
+    </div>
+
+    <div class="section-header">
+      <label class="field-label" style="margin:0;">Ableger</label>
+      <button id="createAblegerBtn" class="scale-open-btn">+ Ableger erstellen</button>
+    </div>
+    <div id="ablegerListEl" class="entries-list"></div>
+
     <label class="field-label">Fotos</label>
     <div id="photosList" class="photos-list"></div>
     <input id="photoFileInput" type="file" accept="image/*" style="display:none;">
@@ -53,9 +65,23 @@
     <div id="stepsList" class="steps-list"></div>
     <button id="addStepBtn" class="btn-add">+ Schritt hinzufügen</button>
 
+    <div id="goldenBlock" hidden>
+      <div class="section-header" style="margin-top:20px;">
+        <label class="field-label" style="margin:0;">Goldene Hinweise</label>
+        <button id="toggleGoldenBtn" class="scale-open-btn">Ausblenden</button>
+      </div>
+      <div id="goldenEntriesList" class="entries-list"></div>
+    </div>
+
     <label class="field-label" style="margin-top:20px;">Hinweise &amp; Erfahrungen</label>
     <div id="entriesList" class="entries-list"></div>
     <button id="addEntryBtn" class="btn-add">+ Eintrag hinzufügen</button>
+
+    <div class="section-header" style="margin-top:20px;">
+      <label class="field-label" style="margin:0;">Versuche</label>
+      <button id="addRunBtn" class="scale-open-btn">+ Neuer Versuch</button>
+    </div>
+    <div id="runsListEl" class="entries-list"></div>
 
     <label class="field-label" style="margin-top:20px;">Fermentation</label>
     <div id="batchesList" class="entries-list"></div>
@@ -88,6 +114,7 @@
     <div class="knowledge-filters">
       <select id="knowledgeTypeFilter" class="entry-type-select">
         <option value="">Alle Arten</option>
+        <option value="Goldener Hinweis">Goldener Hinweis</option>
         <option value="Hinweis">Hinweis</option>
         <option value="Erfahrung">Erfahrung</option>
         <option value="Fehler">Fehler</option>
@@ -157,6 +184,7 @@
       <h2>Hinweis / Erfahrung</h2>
       <select id="entryType" class="entry-type-select">
         <option value="Hinweis">Hinweis</option>
+        <option value="Goldener Hinweis">Goldener Hinweis</option>
         <option value="Erfahrung">Erfahrung</option>
         <option value="Fehler">Fehler</option>
         <option value="Verbesserung">Verbesserung</option>
@@ -197,16 +225,41 @@
   </div>
 
   <div id="batchEntryOverlay" class="overlay" hidden>
-    <div class="modal">
+    <div class="modal scale-modal">
       <h2>Tagebucheintrag</h2>
-      <label class="field-label">Temperatur (°C, optional)</label>
-      <input id="batchEntryTemp" type="text" inputmode="decimal" class="scale-factor-input" placeholder="z. B. 22">
+      <label class="field-label">Messwerte (optional)</label>
+      <div id="batchMeasurementsList" class="ingredients-list"></div>
+      <button id="addBatchMeasurementBtn" class="btn-add">+ Messwert hinzufügen</button>
       <label class="field-label" style="margin-top:12px;">Notiz</label>
       <textarea id="batchEntryNote" class="entry-textarea" placeholder="Was ist dir aufgefallen?"></textarea>
       <div class="modal-actions">
         <button id="batchEntryCancel" class="btn-secondary">Abbrechen</button>
         <button id="batchEntrySave" class="btn-primary">Speichern</button>
       </div>
+    </div>
+  </div>
+
+  <div id="runOverlay" class="overlay" hidden>
+    <div class="modal scale-modal">
+      <h2 id="runOverlayTitle">Neuer Versuch</h2>
+      <label class="field-label">Datum</label>
+      <input id="runDateInput" type="date" class="scale-factor-input">
+
+      <label class="field-label" style="margin-top:12px;">Abweichungen vom Grundrezept</label>
+      <textarea id="runDeviations" class="entry-textarea" placeholder="Was hast du diesmal anders gemacht?"></textarea>
+
+      <label class="field-label">Messwerte (optional)</label>
+      <div id="runMeasurementsList" class="ingredients-list"></div>
+      <button id="addRunMeasurementBtn" class="btn-add">+ Messwert hinzufügen</button>
+
+      <label class="field-label" style="margin-top:12px;">Notizen / Ergebnis</label>
+      <textarea id="runNotes" class="entry-textarea" placeholder="Wie ist es gelaufen?"></textarea>
+
+      <div class="modal-actions">
+        <button id="runCancelBtn" class="btn-secondary">Abbrechen</button>
+        <button id="runSaveBtn" class="btn-primary">Speichern</button>
+      </div>
+      <button id="runDeleteBtn" class="btn-danger" style="margin-top:10px; width:100%;" hidden>Versuch löschen</button>
     </div>
   </div>
 

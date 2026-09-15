@@ -46,6 +46,12 @@ const recipeRawText = document.getElementById("recipeRawText");
 const recipeSaveBtn = document.getElementById("recipeSaveBtn");
 const recipeDeleteBtn = document.getElementById("recipeDeleteBtn");
 
+const parentBanner = document.getElementById("parentBanner");
+const parentBannerBtn = document.getElementById("parentBannerBtn");
+const changeNotesInput = document.getElementById("changeNotesInput");
+const createAblegerBtn = document.getElementById("createAblegerBtn");
+const ablegerListEl = document.getElementById("ablegerListEl");
+
 const ingredientsListEl = document.getElementById("ingredientsList");
 const addIngredientBtn = document.getElementById("addIngredientBtn");
 const stepsListEl = document.getElementById("stepsList");
@@ -66,6 +72,23 @@ const entryText = document.getElementById("entryText");
 const entrySave = document.getElementById("entrySave");
 const entryCancel = document.getElementById("entryCancel");
 
+const goldenBlock = document.getElementById("goldenBlock");
+const goldenEntriesListEl = document.getElementById("goldenEntriesList");
+const toggleGoldenBtn = document.getElementById("toggleGoldenBtn");
+
+const addRunBtn = document.getElementById("addRunBtn");
+const runsListEl = document.getElementById("runsListEl");
+const runOverlay = document.getElementById("runOverlay");
+const runOverlayTitle = document.getElementById("runOverlayTitle");
+const runDateInput = document.getElementById("runDateInput");
+const runDeviations = document.getElementById("runDeviations");
+const runMeasurementsListEl = document.getElementById("runMeasurementsList");
+const addRunMeasurementBtn = document.getElementById("addRunMeasurementBtn");
+const runNotes = document.getElementById("runNotes");
+const runCancelBtn = document.getElementById("runCancelBtn");
+const runSaveBtn = document.getElementById("runSaveBtn");
+const runDeleteBtn = document.getElementById("runDeleteBtn");
+
 const batchesListEl = document.getElementById("batchesList");
 const addBatchBtn = document.getElementById("addBatchBtn");
 const batchView = document.getElementById("batchView");
@@ -76,7 +99,8 @@ const batchDeleteBtn = document.getElementById("batchDeleteBtn");
 const batchEntriesListEl = document.getElementById("batchEntriesList");
 const addBatchEntryBtn = document.getElementById("addBatchEntryBtn");
 const batchEntryOverlay = document.getElementById("batchEntryOverlay");
-const batchEntryTemp = document.getElementById("batchEntryTemp");
+const batchMeasurementsListEl = document.getElementById("batchMeasurementsList");
+const addBatchMeasurementBtn = document.getElementById("addBatchMeasurementBtn");
 const batchEntryNote = document.getElementById("batchEntryNote");
 const batchEntrySave = document.getElementById("batchEntrySave");
 const batchEntryCancel = document.getElementById("batchEntryCancel");
@@ -124,7 +148,14 @@ let unsubscribeBatches = null;
 let currentBatchId = null;
 let currentBatchEntries = [];    // Tagebucheinträge des gerade geöffneten Batches
 let unsubscribeBatchEntries = null;
+let workingBatchMeasurements = []; // { label, value } – nur während des Bearbeitens eines Tagebucheintrags
 let tesseractWorker = null;
+let goldenVisible = true;
+
+let currentRuns = [];            // Versuche des gerade geöffneten Rezepts
+let unsubscribeRuns = null;
+let editingRunId = null;
+let workingRunMeasurements = []; // { label, value } – nur während des Bearbeitens eines Versuchs
 
 function formatDate(ts) {
   if (!ts || !ts.toDate) return "";
@@ -159,6 +190,7 @@ function render() {
   if (unsubscribePhotos) { unsubscribePhotos(); unsubscribePhotos = null; }
   if (unsubscribeBatches) { unsubscribeBatches(); unsubscribeBatches = null; }
   if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
+  if (unsubscribeRuns) { unsubscribeRuns(); unsubscribeRuns = null; }
   viewState = "list";
   currentRecipeId = null;
   recipeView.hidden = true;
@@ -394,11 +426,58 @@ addStepBtn.addEventListener("click", () => {
 });
 
 // --- Hinweise & Erfahrungen ---
+function buildEntryRow(entry, isGolden) {
+  const row = document.createElement("div");
+  row.className = "entry-row";
+
+  const header = document.createElement("div");
+  header.className = "entry-header";
+
+  const badge = document.createElement("span");
+  badge.className = "entry-badge" + (isGolden ? " golden" : "");
+  badge.textContent = entry.type || "Hinweis";
+
+  const date = document.createElement("span");
+  date.className = "entry-date";
+  date.textContent = formatDate(entry.createdAt);
+
+  header.appendChild(badge);
+  header.appendChild(date);
+
+  const text = document.createElement("p");
+  text.className = "entry-text";
+  text.textContent = entry.text;
+
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "entry-remove";
+  removeBtn.textContent = "Löschen";
+  removeBtn.addEventListener("click", async () => {
+    if (confirm("Diesen Eintrag wirklich löschen?")) {
+      await deleteDoc(doc(db, "knowledgeEntries", entry.id));
+    }
+  });
+
+  row.appendChild(header);
+  row.appendChild(text);
+  row.appendChild(removeBtn);
+  return row;
+}
+
 function renderEntries() {
   const entries = entriesOf(currentRecipeId);
-  entriesListEl.innerHTML = "";
+  const goldenEntries = entries.filter(e => e.type === "Goldener Hinweis");
+  const normalEntries = entries.filter(e => e.type !== "Goldener Hinweis");
 
-  if (entries.length === 0) {
+  goldenBlock.hidden = goldenEntries.length === 0;
+  goldenEntriesListEl.innerHTML = "";
+  goldenEntriesListEl.hidden = !goldenVisible;
+  toggleGoldenBtn.textContent = goldenVisible ? "Ausblenden" : "Anzeigen";
+  goldenEntries.forEach(entry => {
+    goldenEntriesListEl.appendChild(buildEntryRow(entry, true));
+  });
+
+  entriesListEl.innerHTML = "";
+  if (normalEntries.length === 0) {
     const empty = document.createElement("p");
     empty.className = "entries-empty";
     empty.textContent = "Noch keine Hinweise oder Erfahrungen.";
@@ -406,43 +485,16 @@ function renderEntries() {
     return;
   }
 
-  entries.forEach(entry => {
-    const row = document.createElement("div");
-    row.className = "entry-row";
-
-    const header = document.createElement("div");
-    header.className = "entry-header";
-
-    const badge = document.createElement("span");
-    badge.className = "entry-badge";
-    badge.textContent = entry.type || "Hinweis";
-
-    const date = document.createElement("span");
-    date.className = "entry-date";
-    date.textContent = formatDate(entry.createdAt);
-
-    header.appendChild(badge);
-    header.appendChild(date);
-
-    const text = document.createElement("p");
-    text.className = "entry-text";
-    text.textContent = entry.text;
-
-    const removeBtn = document.createElement("button");
-    removeBtn.className = "entry-remove";
-    removeBtn.textContent = "Löschen";
-    removeBtn.addEventListener("click", async () => {
-      if (confirm("Diesen Eintrag wirklich löschen?")) {
-        await deleteDoc(doc(db, "knowledgeEntries", entry.id));
-      }
-    });
-
-    row.appendChild(header);
-    row.appendChild(text);
-    row.appendChild(removeBtn);
-    entriesListEl.appendChild(row);
+  normalEntries.forEach(entry => {
+    entriesListEl.appendChild(buildEntryRow(entry, false));
   });
 }
+
+toggleGoldenBtn.addEventListener("click", () => {
+  goldenVisible = !goldenVisible;
+  goldenEntriesListEl.hidden = !goldenVisible;
+  toggleGoldenBtn.textContent = goldenVisible ? "Ausblenden" : "Anzeigen";
+});
 
 addEntryBtn.addEventListener("click", () => {
   entryType.value = "Hinweis";
@@ -477,6 +529,7 @@ function hideAllViews() {
   if (unsubscribePhotos) { unsubscribePhotos(); unsubscribePhotos = null; }
   if (unsubscribeBatches) { unsubscribeBatches(); unsubscribeBatches = null; }
   if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
+  if (unsubscribeRuns) { unsubscribeRuns(); unsubscribeRuns = null; }
   listEl.hidden = true;
   recipeView.hidden = true;
   knowledgeView.hidden = true;
@@ -740,6 +793,9 @@ exportBtn.addEventListener("click", async () => {
     const batchEntriesSnapshot = await getDocs(collection(db, "fermentationEntries"));
     const batchEntriesForExport = batchEntriesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
+    const runsSnapshot = await getDocs(collection(db, "recipeRuns"));
+    const runsForExport = runsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
     const data = serializeForExport({
       exportedAt: new Date().toISOString(),
       categories: allCategories,
@@ -747,7 +803,8 @@ exportBtn.addEventListener("click", async () => {
       knowledgeEntries: allEntries,
       photos: photosForExport,
       fermentationBatches: batchesForExport,
-      fermentationEntries: batchEntriesForExport
+      fermentationEntries: batchEntriesForExport,
+      recipeRuns: runsForExport
     });
 
     const json = JSON.stringify(data, null, 2);
@@ -1164,9 +1221,7 @@ function renderBatchEntries() {
 
     const badge = document.createElement("span");
     badge.className = "entry-badge";
-    badge.textContent = (entry.temperature !== null && entry.temperature !== undefined && entry.temperature !== "")
-      ? entry.temperature + " °C"
-      : "Eintrag";
+    badge.textContent = "Eintrag";
 
     const date = document.createElement("span");
     date.className = "entry-date";
@@ -1174,6 +1229,21 @@ function renderBatchEntries() {
 
     header.appendChild(badge);
     header.appendChild(date);
+    row.appendChild(header);
+
+    // Rückwärtskompatibel: ältere Einträge hatten nur ein festes "temperature"-Feld
+    const measurements = entry.measurements || (
+      entry.temperature !== null && entry.temperature !== undefined && entry.temperature !== ""
+        ? [{ label: "Temperatur", value: entry.temperature + " °C" }]
+        : []
+    );
+    if (measurements.length > 0) {
+      const measRow = document.createElement("p");
+      measRow.className = "entry-date";
+      measRow.style.margin = "0 0 6px";
+      measRow.textContent = measurements.map(m => m.label + ": " + m.value).join(" · ");
+      row.appendChild(measRow);
+    }
 
     const text = document.createElement("p");
     text.className = "entry-text";
@@ -1188,18 +1258,60 @@ function renderBatchEntries() {
       }
     });
 
-    row.appendChild(header);
     row.appendChild(text);
     row.appendChild(removeBtn);
     batchEntriesListEl.appendChild(row);
   });
 }
 
+function renderBatchMeasurements() {
+  batchMeasurementsListEl.innerHTML = "";
+  workingBatchMeasurements.forEach((m, index) => {
+    const row = document.createElement("div");
+    row.className = "ingredient-row";
+
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.className = "meas-label";
+    labelInput.placeholder = "Name (z. B. pH)";
+    labelInput.value = m.label || "";
+    labelInput.addEventListener("input", (e) => { workingBatchMeasurements[index].label = e.target.value; });
+
+    const valueInput = document.createElement("input");
+    valueInput.type = "text";
+    valueInput.className = "meas-value";
+    valueInput.placeholder = "Wert";
+    valueInput.value = m.value || "";
+    valueInput.addEventListener("input", (e) => { workingBatchMeasurements[index].value = e.target.value; });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "ing-remove";
+    removeBtn.textContent = "×";
+    removeBtn.setAttribute("aria-label", "Messwert entfernen");
+    removeBtn.addEventListener("click", () => {
+      workingBatchMeasurements.splice(index, 1);
+      renderBatchMeasurements();
+    });
+
+    row.appendChild(labelInput);
+    row.appendChild(valueInput);
+    row.appendChild(removeBtn);
+    batchMeasurementsListEl.appendChild(row);
+  });
+}
+
+addBatchMeasurementBtn.addEventListener("click", () => {
+  workingBatchMeasurements.push({ label: "", value: "" });
+  renderBatchMeasurements();
+  const lastRow = batchMeasurementsListEl.lastElementChild;
+  if (lastRow) lastRow.querySelector(".meas-label").focus();
+});
+
 addBatchEntryBtn.addEventListener("click", () => {
-  batchEntryTemp.value = "";
+  workingBatchMeasurements = [];
+  renderBatchMeasurements();
   batchEntryNote.value = "";
   batchEntryOverlay.hidden = false;
-  batchEntryNote.focus();
 });
 
 batchEntryCancel.addEventListener("click", () => {
@@ -1208,8 +1320,10 @@ batchEntryCancel.addEventListener("click", () => {
 
 batchEntrySave.addEventListener("click", async () => {
   const note = batchEntryNote.value.trim();
-  const tempRaw = batchEntryTemp.value.trim();
-  if (!note && !tempRaw) {
+  const cleanedMeasurements = workingBatchMeasurements
+    .filter(m => (m.label || "").trim() !== "")
+    .map(m => ({ label: m.label.trim(), value: (m.value || "").trim() }));
+  if (!note && cleanedMeasurements.length === 0) {
     batchEntryNote.focus();
     return;
   }
@@ -1217,7 +1331,7 @@ batchEntrySave.addEventListener("click", async () => {
   await addDoc(collection(db, "fermentationEntries"), {
     batchId: currentBatchId,
     note,
-    temperature: tempRaw ? parseAmount(tempRaw) : null,
+    measurements: cleanedMeasurements,
     createdAt: serverTimestamp()
   });
 });
@@ -1244,6 +1358,148 @@ batchDeleteBtn.addEventListener("click", async () => {
   }
 });
 
+// --- Versuche (für alle Rezepte) ---
+function subscribeRunsForRecipe(recipeId) {
+  if (unsubscribeRuns) { unsubscribeRuns(); unsubscribeRuns = null; }
+  const q = query(collection(db, "recipeRuns"), where("recipeId", "==", recipeId));
+  unsubscribeRuns = onSnapshot(q, (snapshot) => {
+    currentRuns = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.runNumber || 0) - (b.runNumber || 0));
+    if (viewState === "recipe") renderRuns();
+  });
+}
+
+function renderRuns() {
+  runsListEl.innerHTML = "";
+  if (currentRuns.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "entries-empty";
+    empty.textContent = "Noch keine Versuche dokumentiert.";
+    runsListEl.appendChild(empty);
+    return;
+  }
+  currentRuns.forEach(run => {
+    const row = document.createElement("button");
+    row.className = "knowledge-row";
+
+    const header = document.createElement("div");
+    header.className = "entry-header";
+    const badge = document.createElement("span");
+    badge.className = "entry-badge";
+    badge.textContent = "Versuch #" + run.runNumber;
+    const date = document.createElement("span");
+    date.className = "entry-date";
+    date.textContent = formatDateStr(run.date);
+    header.appendChild(badge);
+    header.appendChild(date);
+
+    const preview = document.createElement("p");
+    preview.className = "entry-text";
+    preview.textContent = run.deviations || run.notes || "";
+
+    row.appendChild(header);
+    row.appendChild(preview);
+    row.addEventListener("click", () => openRunOverlay(run.id));
+    runsListEl.appendChild(row);
+  });
+}
+
+function renderRunMeasurements() {
+  runMeasurementsListEl.innerHTML = "";
+  workingRunMeasurements.forEach((m, index) => {
+    const row = document.createElement("div");
+    row.className = "ingredient-row";
+
+    const labelInput = document.createElement("input");
+    labelInput.type = "text";
+    labelInput.className = "meas-label";
+    labelInput.placeholder = "Name (z. B. Hydration %)";
+    labelInput.value = m.label || "";
+    labelInput.addEventListener("input", (e) => { workingRunMeasurements[index].label = e.target.value; });
+
+    const valueInput = document.createElement("input");
+    valueInput.type = "text";
+    valueInput.className = "meas-value";
+    valueInput.placeholder = "Wert";
+    valueInput.value = m.value || "";
+    valueInput.addEventListener("input", (e) => { workingRunMeasurements[index].value = e.target.value; });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "ing-remove";
+    removeBtn.textContent = "×";
+    removeBtn.setAttribute("aria-label", "Messwert entfernen");
+    removeBtn.addEventListener("click", () => {
+      workingRunMeasurements.splice(index, 1);
+      renderRunMeasurements();
+    });
+
+    row.appendChild(labelInput);
+    row.appendChild(valueInput);
+    row.appendChild(removeBtn);
+    runMeasurementsListEl.appendChild(row);
+  });
+}
+
+addRunMeasurementBtn.addEventListener("click", () => {
+  workingRunMeasurements.push({ label: "", value: "" });
+  renderRunMeasurements();
+  const lastRow = runMeasurementsListEl.lastElementChild;
+  if (lastRow) lastRow.querySelector(".meas-label").focus();
+});
+
+function openRunOverlay(runId) {
+  editingRunId = runId;
+  const run = runId ? currentRuns.find(r => r.id === runId) : null;
+  runOverlayTitle.textContent = run ? "Versuch #" + run.runNumber : "Neuer Versuch";
+  runDateInput.value = run ? (run.date || "").slice(0, 10) : new Date().toISOString().slice(0, 10);
+  runDeviations.value = run ? (run.deviations || "") : "";
+  runNotes.value = run ? (run.notes || "") : "";
+  workingRunMeasurements = run ? (run.measurements || []).map(m => ({ ...m })) : [];
+  renderRunMeasurements();
+  runDeleteBtn.hidden = !run;
+  runOverlay.hidden = false;
+}
+
+addRunBtn.addEventListener("click", () => openRunOverlay(null));
+
+runCancelBtn.addEventListener("click", () => {
+  runOverlay.hidden = true;
+});
+
+runSaveBtn.addEventListener("click", async () => {
+  const cleanedMeasurements = workingRunMeasurements
+    .filter(m => (m.label || "").trim() !== "")
+    .map(m => ({ label: m.label.trim(), value: (m.value || "").trim() }));
+
+  const payload = {
+    recipeId: currentRecipeId,
+    date: runDateInput.value || new Date().toISOString().slice(0, 10),
+    deviations: runDeviations.value.trim(),
+    notes: runNotes.value.trim(),
+    measurements: cleanedMeasurements
+  };
+
+  runOverlay.hidden = true;
+
+  if (editingRunId) {
+    await updateDoc(doc(db, "recipeRuns", editingRunId), payload);
+  } else {
+    const maxNum = currentRuns.reduce((m, r) => Math.max(m, r.runNumber || 0), 0);
+    payload.runNumber = maxNum + 1;
+    payload.createdAt = serverTimestamp();
+    await addDoc(collection(db, "recipeRuns"), payload);
+  }
+});
+
+runDeleteBtn.addEventListener("click", async () => {
+  if (!editingRunId) return;
+  if (confirm("Diesen Versuch wirklich löschen?")) {
+    await deleteDoc(doc(db, "recipeRuns", editingRunId));
+    runOverlay.hidden = true;
+  }
+});
+
 // --- Rezept-Ansicht ---
 function openRecipe(id) {
   const recipe = allRecipes.find(r => r.id === id);
@@ -1267,9 +1523,70 @@ function openRecipe(id) {
   renderSteps();
   renderTags();
   renderEntries();
+  renderAbleger(recipe);
   subscribePhotosForRecipe(id);
   subscribeBatchesForRecipe(id);
+  subscribeRunsForRecipe(id);
 }
+
+// --- Ableger ---
+function renderAbleger(recipe) {
+  if (recipe.parentRecipeId) {
+    const parent = allRecipes.find(r => r.id === recipe.parentRecipeId);
+    parentBanner.hidden = false;
+    parentBannerBtn.textContent = "Ableger von: " + (parent ? parent.title : "Unbekanntes Rezept");
+    changeNotesInput.value = recipe.changeNotes || "";
+  } else {
+    parentBanner.hidden = true;
+    changeNotesInput.value = "";
+  }
+
+  const children = allRecipes.filter(r => r.parentRecipeId === recipe.id);
+  ablegerListEl.innerHTML = "";
+  if (children.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "entries-empty";
+    empty.textContent = "Noch keine Ableger.";
+    ablegerListEl.appendChild(empty);
+  } else {
+    children.forEach(child => {
+      const row = document.createElement("button");
+      row.className = "knowledge-row";
+      const titleP = document.createElement("p");
+      titleP.className = "search-item-title";
+      titleP.textContent = (child.favorite ? "★ " : "") + child.title;
+      row.appendChild(titleP);
+      row.addEventListener("click", () => openRecipe(child.id));
+      ablegerListEl.appendChild(row);
+    });
+  }
+}
+
+parentBannerBtn.addEventListener("click", () => {
+  const recipe = allRecipes.find(r => r.id === currentRecipeId);
+  if (recipe && recipe.parentRecipeId) openRecipe(recipe.parentRecipeId);
+});
+
+createAblegerBtn.addEventListener("click", () => {
+  const baseRecipe = allRecipes.find(r => r.id === currentRecipeId);
+  if (!baseRecipe) return;
+  openModal("Ableger erstellen", "", async (title) => {
+    const ref = await addDoc(collection(db, "recipes"), {
+      title,
+      rawText: baseRecipe.rawText || "",
+      ingredients: (baseRecipe.ingredients || []).map(i => ({ ...i })),
+      steps: [...(baseRecipe.steps || [])],
+      tags: [],
+      favorite: false,
+      categoryIds: baseRecipe.categoryIds || [],
+      parentRecipeId: baseRecipe.id,
+      changeNotes: "",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    openRecipe(ref.id);
+  });
+});
 
 favoriteBtn.addEventListener("click", async () => {
   const recipe = allRecipes.find(r => r.id === currentRecipeId);
@@ -1304,6 +1621,7 @@ recipeSaveBtn.addEventListener("click", async () => {
     ingredients: cleanedIngredients,
     steps: cleanedSteps,
     tags: workingTags,
+    changeNotes: changeNotesInput.value.trim(),
     updatedAt: serverTimestamp()
   });
   render();
@@ -1314,9 +1632,11 @@ recipeDeleteBtn.addEventListener("click", async () => {
     const relatedPhotos = currentPhotos.slice();
     const relatedEntries = entriesOf(currentRecipeId);
     const relatedBatches = currentBatches.slice();
+    const relatedRuns = currentRuns.slice();
     await deleteDoc(doc(db, "recipes", currentRecipeId));
     await Promise.all(relatedPhotos.map(p => deleteDoc(doc(db, "photos", p.id))));
     await Promise.all(relatedEntries.map(e => deleteDoc(doc(db, "knowledgeEntries", e.id))));
+    await Promise.all(relatedRuns.map(r => deleteDoc(doc(db, "recipeRuns", r.id))));
     for (const batch of relatedBatches) {
       const batchEntriesSnapshot = await getDocs(query(collection(db, "fermentationEntries"), where("batchId", "==", batch.id)));
       await Promise.all(batchEntriesSnapshot.docs.map(d => deleteDoc(doc(db, "fermentationEntries", d.id))));
