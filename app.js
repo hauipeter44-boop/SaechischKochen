@@ -55,6 +55,9 @@ const photosListEl = document.getElementById("photosList");
 const photoFileInput = document.getElementById("photoFileInput");
 const addPhotoBtn = document.getElementById("addPhotoBtn");
 
+const tagsListEl = document.getElementById("tagsList");
+const tagInput = document.getElementById("tagInput");
+
 const entriesListEl = document.getElementById("entriesList");
 const addEntryBtn = document.getElementById("addEntryBtn");
 const entryOverlay = document.getElementById("entryOverlay");
@@ -110,6 +113,7 @@ let viewState = "list"; // "list" oder "recipe"
 let currentRecipeId = null;
 let workingIngredients = []; // { amount, unit, name } – nur während des Bearbeitens
 let workingSteps = [];       // Liste von Text-Strings – nur während des Bearbeitens
+let workingTags = [];        // Liste von Tag-Strings – nur während des Bearbeitens
 let allEntries = [];         // alle Hinweise/Erfahrungen, live von Firestore
 let activeTab = "library";   // "library" oder "knowledge"
 let currentPhotos = [];      // Fotos des gerade geöffneten Rezepts
@@ -217,10 +221,33 @@ function render() {
     const nameBtn = document.createElement("button");
     nameBtn.className = "row-name";
 
+    const content = document.createElement("span");
+    content.style.display = "flex";
+    content.style.flexDirection = "column";
+    content.style.alignItems = "flex-start";
+    content.style.gap = "2px";
+
     const nameSpan = document.createElement("span");
     nameSpan.textContent = (recipe.favorite ? "★ " : "") + (recipe.title || "Ohne Titel");
-    nameBtn.appendChild(nameSpan);
+    content.appendChild(nameSpan);
 
+    if (recipe.tags && recipe.tags.length > 0) {
+      const tagsRow = document.createElement("span");
+      tagsRow.className = "row-tags";
+      recipe.tags.forEach(tag => {
+        const tagBtn = document.createElement("button");
+        tagBtn.className = "row-tag-btn";
+        tagBtn.textContent = "#" + tag;
+        tagBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          jumpToTagSearch(tag);
+        });
+        tagsRow.appendChild(tagBtn);
+      });
+      content.appendChild(tagsRow);
+    }
+
+    nameBtn.appendChild(content);
     nameBtn.addEventListener("click", () => openRecipe(recipe.id));
 
     row.appendChild(nameBtn);
@@ -284,6 +311,43 @@ addIngredientBtn.addEventListener("click", () => {
   renderIngredients();
   const lastRow = ingredientsListEl.lastElementChild;
   if (lastRow) lastRow.querySelector(".ing-name").focus();
+});
+
+// --- Tags ---
+function renderTags() {
+  tagsListEl.innerHTML = "";
+  workingTags.forEach((tag, index) => {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip";
+
+    const label = document.createElement("span");
+    label.textContent = tag;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "tag-remove";
+    removeBtn.textContent = "×";
+    removeBtn.setAttribute("aria-label", "Tag entfernen");
+    removeBtn.addEventListener("click", () => {
+      workingTags.splice(index, 1);
+      renderTags();
+    });
+
+    chip.appendChild(label);
+    chip.appendChild(removeBtn);
+    tagsListEl.appendChild(chip);
+  });
+}
+
+tagInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === ",") {
+    e.preventDefault();
+    const value = tagInput.value.trim().replace(/,$/, "");
+    if (value && !workingTags.includes(value)) {
+      workingTags.push(value);
+      renderTags();
+    }
+    tagInput.value = "";
+  }
 });
 
 // --- Schritte-Bearbeitung ---
@@ -457,6 +521,19 @@ tabSearch.addEventListener("click", () => {
   globalSearchInput.focus();
 });
 
+function jumpToTagSearch(tag) {
+  activeTab = "search";
+  setActiveTabButton("search");
+  hideAllViews();
+  searchView.hidden = false;
+  backBtn.hidden = true;
+  addBtn.hidden = true;
+  favoriteBtn.hidden = true;
+  titleEl.textContent = "Suche";
+  globalSearchInput.value = tag;
+  renderSearchResults();
+}
+
 function renderKnowledgeView() {
   const typeFilter = knowledgeTypeFilter.value;
   const searchText = knowledgeSearchInput.value.trim().toLowerCase();
@@ -544,6 +621,7 @@ function renderSearchResults() {
     if ((r.rawText || "").toLowerCase().includes(q)) return true;
     if ((r.ingredients || []).some(i => (i.name || "").toLowerCase().includes(q))) return true;
     if ((r.steps || []).some(s => (s || "").toLowerCase().includes(q))) return true;
+    if ((r.tags || []).some(t => (t || "").toLowerCase().includes(q))) return true;
     return false;
   });
 
@@ -1104,8 +1182,10 @@ function openRecipe(id) {
 
   workingIngredients = (recipe.ingredients || []).map(i => ({ ...i }));
   workingSteps = [...(recipe.steps || [])];
+  workingTags = [...(recipe.tags || [])];
   renderIngredients();
   renderSteps();
+  renderTags();
   renderEntries();
   subscribePhotosForRecipe(id);
   subscribeBatchesForRecipe(id);
@@ -1143,6 +1223,7 @@ recipeSaveBtn.addEventListener("click", async () => {
     rawText: recipeRawText.value,
     ingredients: cleanedIngredients,
     steps: cleanedSteps,
+    tags: workingTags,
     updatedAt: serverTimestamp()
   });
   render();
@@ -1251,6 +1332,7 @@ addRecipeBtn.addEventListener("click", () => {
       rawText: "",
       ingredients: [],
       steps: [],
+      tags: [],
       favorite: false,
       categoryIds: currentParentId() ? [currentParentId()] : [],
       createdAt: serverTimestamp(),
@@ -1280,6 +1362,39 @@ async function getTesseractWorker() {
   return tesseractWorker;
 }
 
+const OCR_UNIT_PATTERN = /^(g|kg|mg|ml|l|cl|el|tl|stück|stk|prise|prisen|bund|zehen?|dose|dosen|päckchen|scheiben?|blatt|blätter|handvoll|tasse|tassen)\.?$/i;
+const OCR_AMOUNT_START = /^(\d+([.,]\d+)?(\s*\/\s*\d+)?)\s+(.*)$/;
+
+function parseOcrText(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  const ingredients = [];
+  const steps = [];
+
+  lines.forEach(line => {
+    if (/^(zutaten|zubereitung|anleitung)\s*:?$/i.test(line)) return;
+
+    const amountMatch = line.match(OCR_AMOUNT_START);
+    if (amountMatch) {
+      const amount = amountMatch[1];
+      const rest = amountMatch[4].trim();
+      const restWords = rest.split(/\s+/);
+      const maybeUnit = restWords[0] || "";
+      if (OCR_UNIT_PATTERN.test(maybeUnit)) {
+        ingredients.push({ amount, unit: maybeUnit, name: restWords.slice(1).join(" ") });
+      } else {
+        ingredients.push({ amount, unit: "", name: rest });
+      }
+      return;
+    }
+
+    if (line.split(/\s+/).length >= 3) {
+      steps.push(line);
+    }
+  });
+
+  return { ingredients, steps };
+}
+
 addOcrBtn.addEventListener("click", () => {
   addChoiceOverlay.hidden = true;
   ocrFileInput.click();
@@ -1299,12 +1414,14 @@ ocrFileInput.addEventListener("change", async () => {
     ocrStatus.textContent = "Text wird erkannt… Das kann einen Moment dauern.";
     const result = await worker.recognize(ocrImage);
     const recognizedText = (result.data.text || "").trim();
+    const parsed = parseOcrText(recognizedText);
 
     const ref = await addDoc(collection(db, "recipes"), {
       title: "Neues Rezept aus Foto",
       rawText: recognizedText,
-      ingredients: [],
-      steps: [],
+      ingredients: parsed.ingredients,
+      steps: parsed.steps,
+      tags: [],
       favorite: false,
       categoryIds: currentParentId() ? [currentParentId()] : [],
       createdAt: serverTimestamp(),
