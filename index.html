@@ -21,7 +21,12 @@
       <input id="recipeTitleInput" type="text" class="title-input" placeholder="Titel" autocomplete="off">
     </div>
 
-    <div class="section-header">
+    <label class="field-label">Fotos</label>
+    <div id="photosList" class="photos-list"></div>
+    <input id="photoFileInput" type="file" accept="image/*" style="display:none;">
+    <button id="addPhotoBtn" class="btn-add">+ Foto hinzufügen</button>
+
+    <div class="section-header" style="margin-top:20px;">
       <label class="field-label">Zutaten</label>
       <button id="scaleOpenBtn" class="scale-open-btn">Menge anpassen</button>
     </div>

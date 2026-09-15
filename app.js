@@ -1,6 +1,6 @@
 import {
   db, collection, doc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, serverTimestamp
+  onSnapshot, query, orderBy, where, serverTimestamp
 } from "./firebase.js";
 
 // --- Elemente ---
@@ -38,6 +38,10 @@ const ingredientsListEl = document.getElementById("ingredientsList");
 const addIngredientBtn = document.getElementById("addIngredientBtn");
 const stepsListEl = document.getElementById("stepsList");
 const addStepBtn = document.getElementById("addStepBtn");
+
+const photosListEl = document.getElementById("photosList");
+const photoFileInput = document.getElementById("photoFileInput");
+const addPhotoBtn = document.getElementById("addPhotoBtn");
 
 const entriesListEl = document.getElementById("entriesList");
 const addEntryBtn = document.getElementById("addEntryBtn");
@@ -80,6 +84,8 @@ let workingIngredients = []; // { amount, unit, name } – nur während des Bear
 let workingSteps = [];       // Liste von Text-Strings – nur während des Bearbeitens
 let allEntries = [];         // alle Hinweise/Erfahrungen, live von Firestore
 let activeTab = "library";   // "library" oder "knowledge"
+let currentPhotos = [];      // Fotos des gerade geöffneten Rezepts
+let unsubscribePhotos = null;
 
 function formatDate(ts) {
   if (!ts || !ts.toDate) return "";
@@ -111,6 +117,7 @@ function entriesOf(recipeId) {
 
 // --- Listen-Ansicht (Kategorien + Rezepte der aktuellen Ebene) ---
 function render() {
+  if (unsubscribePhotos) { unsubscribePhotos(); unsubscribePhotos = null; }
   viewState = "list";
   currentRecipeId = null;
   recipeView.hidden = true;
@@ -366,6 +373,7 @@ entrySave.addEventListener("click", async () => {
 
 // --- Tab-Leiste ---
 function hideAllViews() {
+  if (unsubscribePhotos) { unsubscribePhotos(); unsubscribePhotos = null; }
   listEl.hidden = true;
   recipeView.hidden = true;
   knowledgeView.hidden = true;
@@ -677,6 +685,109 @@ scaleClose.addEventListener("click", () => {
   scaleOverlay.hidden = true;
 });
 
+// --- Fotos ---
+function renderPhotos() {
+  photosListEl.innerHTML = "";
+
+  if (currentPhotos.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "photos-empty";
+    empty.textContent = "Noch keine Fotos.";
+    photosListEl.appendChild(empty);
+    return;
+  }
+
+  currentPhotos.forEach(photo => {
+    const thumb = document.createElement("div");
+    thumb.className = "photo-thumb";
+
+    const img = document.createElement("img");
+    img.src = photo.dataUrl;
+    img.alt = "";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "photo-remove";
+    removeBtn.setAttribute("aria-label", "Foto löschen");
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", async () => {
+      if (confirm("Dieses Foto wirklich löschen?")) {
+        await deleteDoc(doc(db, "photos", photo.id));
+      }
+    });
+
+    thumb.appendChild(img);
+    thumb.appendChild(removeBtn);
+    photosListEl.appendChild(thumb);
+  });
+}
+
+function subscribePhotosForRecipe(recipeId) {
+  if (unsubscribePhotos) { unsubscribePhotos(); unsubscribePhotos = null; }
+  const q = query(collection(db, "photos"), where("recipeId", "==", recipeId));
+  unsubscribePhotos = onSnapshot(q, (snapshot) => {
+    currentPhotos = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const at = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0;
+        const bt = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0;
+        return at - bt;
+      });
+    renderPhotos();
+  });
+}
+
+function compressImage(file, maxDimension, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Datei konnte nicht gelesen werden"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Bild konnte nicht geladen werden"));
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round(height * (maxDimension / width));
+            width = maxDimension;
+          } else {
+            width = Math.round(width * (maxDimension / height));
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+addPhotoBtn.addEventListener("click", () => {
+  photoFileInput.click();
+});
+
+photoFileInput.addEventListener("change", async () => {
+  const file = photoFileInput.files[0];
+  photoFileInput.value = "";
+  if (!file || !currentRecipeId) return;
+  try {
+    const dataUrl = await compressImage(file, 1000, 0.7);
+    await addDoc(collection(db, "photos"), {
+      recipeId: currentRecipeId,
+      dataUrl,
+      createdAt: serverTimestamp()
+    });
+  } catch (err) {
+    alert("Foto konnte nicht verarbeitet werden: " + err.message);
+  }
+});
+
 // --- Rezept-Ansicht ---
 function openRecipe(id) {
   const recipe = allRecipes.find(r => r.id === id);
@@ -698,6 +809,7 @@ function openRecipe(id) {
   renderIngredients();
   renderSteps();
   renderEntries();
+  subscribePhotosForRecipe(id);
 }
 
 favoriteBtn.addEventListener("click", async () => {
@@ -739,7 +851,11 @@ recipeSaveBtn.addEventListener("click", async () => {
 
 recipeDeleteBtn.addEventListener("click", async () => {
   if (confirm("Dieses Rezept wirklich löschen?")) {
+    const relatedPhotos = currentPhotos.slice();
+    const relatedEntries = entriesOf(currentRecipeId);
     await deleteDoc(doc(db, "recipes", currentRecipeId));
+    await Promise.all(relatedPhotos.map(p => deleteDoc(doc(db, "photos", p.id))));
+    await Promise.all(relatedEntries.map(e => deleteDoc(doc(db, "knowledgeEntries", e.id))));
     render();
   }
 });
