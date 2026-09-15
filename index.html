@@ -59,9 +59,15 @@
     <div id="knowledgeList" class="knowledge-list"></div>
   </main>
 
+  <main id="searchView" class="search-view" hidden>
+    <input id="globalSearchInput" type="text" class="knowledge-search full-width" placeholder="Rezepte, Zutaten, Hinweise durchsuchen…" autocomplete="off">
+    <div id="searchResults" class="search-results"></div>
+  </main>
+
   <nav class="tabbar">
     <button id="tabLibrary" class="tab-btn active">Bibliothek</button>
     <button id="tabKnowledge" class="tab-btn">Wissen</button>
+    <button id="tabSearch" class="tab-btn">Suche</button>
   </nav>
 
   <div id="modalOverlay" class="overlay" hidden>

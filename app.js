@@ -54,6 +54,11 @@ const knowledgeListEl = document.getElementById("knowledgeList");
 const knowledgeTypeFilter = document.getElementById("knowledgeTypeFilter");
 const knowledgeSearchInput = document.getElementById("knowledgeSearchInput");
 
+const tabSearch = document.getElementById("tabSearch");
+const searchView = document.getElementById("searchView");
+const searchResultsEl = document.getElementById("searchResults");
+const globalSearchInput = document.getElementById("globalSearchInput");
+
 // --- Zustand ---
 let allCategories = [];
 let allRecipes = [];
@@ -351,26 +356,49 @@ entrySave.addEventListener("click", async () => {
 });
 
 // --- Tab-Leiste ---
+function hideAllViews() {
+  listEl.hidden = true;
+  recipeView.hidden = true;
+  knowledgeView.hidden = true;
+  searchView.hidden = true;
+}
+
+function setActiveTabButton(tab) {
+  tabLibrary.classList.toggle("active", tab === "library");
+  tabKnowledge.classList.toggle("active", tab === "knowledge");
+  tabSearch.classList.toggle("active", tab === "search");
+}
+
 tabLibrary.addEventListener("click", () => {
   activeTab = "library";
-  tabLibrary.classList.add("active");
-  tabKnowledge.classList.remove("active");
-  knowledgeView.hidden = true;
+  setActiveTabButton("library");
+  hideAllViews();
   render();
 });
 
 tabKnowledge.addEventListener("click", () => {
   activeTab = "knowledge";
-  tabKnowledge.classList.add("active");
-  tabLibrary.classList.remove("active");
-  listEl.hidden = true;
-  recipeView.hidden = true;
+  setActiveTabButton("knowledge");
+  hideAllViews();
   knowledgeView.hidden = false;
   backBtn.hidden = true;
   addBtn.hidden = true;
   favoriteBtn.hidden = true;
   titleEl.textContent = "Wissen";
   renderKnowledgeView();
+});
+
+tabSearch.addEventListener("click", () => {
+  activeTab = "search";
+  setActiveTabButton("search");
+  hideAllViews();
+  searchView.hidden = false;
+  backBtn.hidden = true;
+  addBtn.hidden = true;
+  favoriteBtn.hidden = true;
+  titleEl.textContent = "Suche";
+  renderSearchResults();
+  globalSearchInput.focus();
 });
 
 function renderKnowledgeView() {
@@ -431,15 +459,118 @@ function renderKnowledgeView() {
 
 function goToRecipeFromKnowledge(recipeId) {
   activeTab = "library";
-  tabLibrary.classList.add("active");
-  tabKnowledge.classList.remove("active");
-  knowledgeView.hidden = true;
+  setActiveTabButton("library");
+  hideAllViews();
   path = [{ id: null, name: "Kategorien" }];
   openRecipe(recipeId);
 }
 
 knowledgeTypeFilter.addEventListener("change", renderKnowledgeView);
 knowledgeSearchInput.addEventListener("input", renderKnowledgeView);
+
+// --- Globale Suche ---
+function renderSearchResults() {
+  const q = globalSearchInput.value.trim().toLowerCase();
+  searchResultsEl.innerHTML = "";
+
+  if (!q) {
+    const hint = document.createElement("p");
+    hint.className = "entries-empty";
+    hint.textContent = "Tippe, um in Rezepten, Zutaten und Hinweisen zu suchen.";
+    searchResultsEl.appendChild(hint);
+    return;
+  }
+
+  const matchingCategories = allCategories.filter(c => (c.name || "").toLowerCase().includes(q));
+
+  const matchingRecipes = allRecipes.filter(r => {
+    if ((r.title || "").toLowerCase().includes(q)) return true;
+    if ((r.rawText || "").toLowerCase().includes(q)) return true;
+    if ((r.ingredients || []).some(i => (i.name || "").toLowerCase().includes(q))) return true;
+    if ((r.steps || []).some(s => (s || "").toLowerCase().includes(q))) return true;
+    return false;
+  });
+
+  const matchingEntries = allEntries.filter(e => (e.text || "").toLowerCase().includes(q));
+
+  if (matchingCategories.length === 0 && matchingRecipes.length === 0 && matchingEntries.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "entries-empty";
+    empty.textContent = "Nichts gefunden.";
+    searchResultsEl.appendChild(empty);
+    return;
+  }
+
+  if (matchingCategories.length > 0) {
+    appendSearchSection("Kategorien", matchingCategories.map(cat => ({
+      title: cat.name,
+      subtitle: "",
+      onClick: () => goToCategoryFromSearch(cat.id)
+    })));
+  }
+
+  if (matchingRecipes.length > 0) {
+    appendSearchSection("Rezepte", matchingRecipes.map(r => ({
+      title: (r.favorite ? "★ " : "") + (r.title || "Ohne Titel"),
+      subtitle: "",
+      onClick: () => goToRecipeFromKnowledge(r.id)
+    })));
+  }
+
+  if (matchingEntries.length > 0) {
+    appendSearchSection("Hinweise & Erfahrungen", matchingEntries.map(e => ({
+      title: e.text,
+      subtitle: (e.type || "") + " · " + (e.recipeTitle || ""),
+      onClick: () => goToRecipeFromKnowledge(e.recipeId)
+    })));
+  }
+}
+
+function appendSearchSection(heading, items) {
+  const headingEl = document.createElement("h2");
+  headingEl.className = "search-heading";
+  headingEl.textContent = heading;
+  searchResultsEl.appendChild(headingEl);
+
+  items.forEach(item => {
+    const row = document.createElement("button");
+    row.className = "knowledge-row";
+
+    const titleP = document.createElement("p");
+    titleP.className = "search-item-title";
+    titleP.textContent = item.title;
+    row.appendChild(titleP);
+
+    if (item.subtitle) {
+      const subtitleP = document.createElement("p");
+      subtitleP.className = "entry-date";
+      subtitleP.textContent = item.subtitle;
+      row.appendChild(subtitleP);
+    }
+
+    row.addEventListener("click", item.onClick);
+    searchResultsEl.appendChild(row);
+  });
+}
+
+function goToCategoryFromSearch(categoryId) {
+  activeTab = "library";
+  setActiveTabButton("library");
+  hideAllViews();
+
+  const newPath = [{ id: null, name: "Kategorien" }];
+  const chain = [];
+  let current = allCategories.find(c => c.id === categoryId);
+  while (current) {
+    chain.unshift(current);
+    current = current.parentId ? allCategories.find(c => c.id === current.parentId) : null;
+  }
+  chain.forEach(c => newPath.push({ id: c.id, name: c.name }));
+  path = newPath;
+  render();
+}
+
+globalSearchInput.addEventListener("input", renderSearchResults);
 
 // --- Rezept-Ansicht ---
 function openRecipe(id) {
@@ -513,7 +644,8 @@ function subscribeCategories() {
   const q = query(collection(db, "categories"), orderBy("sortIndex"));
   onSnapshot(q, (snapshot) => {
     allCategories = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (viewState === "list") render();
+    if (activeTab === "library" && viewState === "list") render();
+    if (activeTab === "search") renderSearchResults();
   }, (error) => {
     listEl.innerHTML = "";
     const err = document.createElement("p");
@@ -527,7 +659,8 @@ function subscribeRecipes() {
   const q = query(collection(db, "recipes"), orderBy("title"));
   onSnapshot(q, (snapshot) => {
     allRecipes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (viewState === "list") render();
+    if (activeTab === "library" && viewState === "list") render();
+    if (activeTab === "search") renderSearchResults();
   });
 }
 
@@ -535,8 +668,9 @@ function subscribeEntries() {
   const q = query(collection(db, "knowledgeEntries"), orderBy("createdAt", "desc"));
   onSnapshot(q, (snapshot) => {
     allEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (viewState === "recipe") renderEntries();
+    if (activeTab === "library" && viewState === "recipe") renderEntries();
     if (activeTab === "knowledge") renderKnowledgeView();
+    if (activeTab === "search") renderSearchResults();
   });
 }
 
