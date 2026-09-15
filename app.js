@@ -39,6 +39,14 @@ const addIngredientBtn = document.getElementById("addIngredientBtn");
 const stepsListEl = document.getElementById("stepsList");
 const addStepBtn = document.getElementById("addStepBtn");
 
+const entriesListEl = document.getElementById("entriesList");
+const addEntryBtn = document.getElementById("addEntryBtn");
+const entryOverlay = document.getElementById("entryOverlay");
+const entryType = document.getElementById("entryType");
+const entryText = document.getElementById("entryText");
+const entrySave = document.getElementById("entrySave");
+const entryCancel = document.getElementById("entryCancel");
+
 // --- Zustand ---
 let allCategories = [];
 let allRecipes = [];
@@ -49,6 +57,12 @@ let viewState = "list"; // "list" oder "recipe"
 let currentRecipeId = null;
 let workingIngredients = []; // { amount, unit, name } – nur während des Bearbeitens
 let workingSteps = [];       // Liste von Text-Strings – nur während des Bearbeitens
+let allEntries = [];         // alle Hinweise/Erfahrungen, live von Firestore
+
+function formatDate(ts) {
+  if (!ts || !ts.toDate) return "";
+  return ts.toDate().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 function currentParentId() {
   return path[path.length - 1].id;
@@ -67,6 +81,10 @@ function recipesOf(parentId) {
       return parentId === null ? ids.length === 0 : ids.includes(parentId);
     })
     .sort((a, b) => (a.title || "").localeCompare(b.title || "", "de"));
+}
+
+function entriesOf(recipeId) {
+  return allEntries.filter(e => e.recipeId === recipeId);
 }
 
 // --- Listen-Ansicht (Kategorien + Rezepte der aktuellen Ebene) ---
@@ -245,6 +263,85 @@ addStepBtn.addEventListener("click", () => {
   if (lastRow) lastRow.querySelector(".step-text").focus();
 });
 
+// --- Hinweise & Erfahrungen ---
+function renderEntries() {
+  const entries = entriesOf(currentRecipeId);
+  entriesListEl.innerHTML = "";
+
+  if (entries.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "entries-empty";
+    empty.textContent = "Noch keine Hinweise oder Erfahrungen.";
+    entriesListEl.appendChild(empty);
+    return;
+  }
+
+  entries.forEach(entry => {
+    const row = document.createElement("div");
+    row.className = "entry-row";
+
+    const header = document.createElement("div");
+    header.className = "entry-header";
+
+    const badge = document.createElement("span");
+    badge.className = "entry-badge";
+    badge.textContent = entry.type || "Hinweis";
+
+    const date = document.createElement("span");
+    date.className = "entry-date";
+    date.textContent = formatDate(entry.createdAt);
+
+    header.appendChild(badge);
+    header.appendChild(date);
+
+    const text = document.createElement("p");
+    text.className = "entry-text";
+    text.textContent = entry.text;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "entry-remove";
+    removeBtn.textContent = "Löschen";
+    removeBtn.addEventListener("click", async () => {
+      if (confirm("Diesen Eintrag wirklich löschen?")) {
+        await deleteDoc(doc(db, "knowledgeEntries", entry.id));
+      }
+    });
+
+    row.appendChild(header);
+    row.appendChild(text);
+    row.appendChild(removeBtn);
+    entriesListEl.appendChild(row);
+  });
+}
+
+addEntryBtn.addEventListener("click", () => {
+  entryType.value = "Hinweis";
+  entryText.value = "";
+  entryOverlay.hidden = false;
+  entryText.focus();
+});
+
+entryCancel.addEventListener("click", () => {
+  entryOverlay.hidden = true;
+});
+
+entrySave.addEventListener("click", async () => {
+  const text = entryText.value.trim();
+  if (!text) {
+    entryText.focus();
+    return;
+  }
+  const recipe = allRecipes.find(r => r.id === currentRecipeId);
+  entryOverlay.hidden = true;
+  await addDoc(collection(db, "knowledgeEntries"), {
+    recipeId: currentRecipeId,
+    recipeTitle: recipe ? recipe.title : "",
+    type: entryType.value,
+    text,
+    createdAt: serverTimestamp()
+  });
+});
+
 // --- Rezept-Ansicht ---
 function openRecipe(id) {
   const recipe = allRecipes.find(r => r.id === id);
@@ -265,6 +362,7 @@ function openRecipe(id) {
   workingSteps = [...(recipe.steps || [])];
   renderIngredients();
   renderSteps();
+  renderEntries();
 }
 
 favoriteBtn.addEventListener("click", async () => {
@@ -331,6 +429,14 @@ function subscribeRecipes() {
   onSnapshot(q, (snapshot) => {
     allRecipes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     if (viewState === "list") render();
+  });
+}
+
+function subscribeEntries() {
+  const q = query(collection(db, "knowledgeEntries"), orderBy("createdAt", "desc"));
+  onSnapshot(q, (snapshot) => {
+    allEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (viewState === "recipe") renderEntries();
   });
 }
 
@@ -476,3 +582,4 @@ menuDelete.addEventListener("click", async () => {
 // --- Start ---
 subscribeCategories();
 subscribeRecipes();
+subscribeEntries();

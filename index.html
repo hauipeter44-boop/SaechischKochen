@@ -29,6 +29,10 @@
     <div id="stepsList" class="steps-list"></div>
     <button id="addStepBtn" class="btn-add">+ Schritt hinzufügen</button>
 
+    <label class="field-label" style="margin-top:20px;">Hinweise &amp; Erfahrungen</label>
+    <div id="entriesList" class="entries-list"></div>
+    <button id="addEntryBtn" class="btn-add">+ Eintrag hinzufügen</button>
+
     <label class="field-label" style="margin-top:20px;">Rohrezept</label>
     <textarea id="recipeRawText" class="raw-textarea" placeholder="Zutaten, Mengen, Zubereitung – so wie du es hast, unformatiert."></textarea>
 
@@ -64,6 +68,26 @@
       <button id="addCategoryBtn" class="sheet-btn">Neue Kategorie</button>
       <button id="addRecipeBtn" class="sheet-btn">Neues Rezept</button>
       <button id="addCancelBtn" class="sheet-btn cancel">Abbrechen</button>
+    </div>
+  </div>
+
+  <div id="entryOverlay" class="overlay" hidden>
+    <div class="modal">
+      <h2>Hinweis / Erfahrung</h2>
+      <select id="entryType" class="entry-type-select">
+        <option value="Hinweis">Hinweis</option>
+        <option value="Erfahrung">Erfahrung</option>
+        <option value="Fehler">Fehler</option>
+        <option value="Verbesserung">Verbesserung</option>
+        <option value="Variante">Variante</option>
+        <option value="Merken">Merken</option>
+        <option value="Experiment">Experiment</option>
+      </select>
+      <textarea id="entryText" class="entry-textarea" placeholder="Was ist dir aufgefallen?"></textarea>
+      <div class="modal-actions">
+        <button id="entryCancel" class="btn-secondary">Abbrechen</button>
+        <button id="entrySave" class="btn-primary">Speichern</button>
+      </div>
     </div>
   </div>
 
