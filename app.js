@@ -35,7 +35,11 @@ const menuCancel = document.getElementById("menuCancel");
 const addChoiceOverlay = document.getElementById("addChoiceOverlay");
 const addCategoryBtn = document.getElementById("addCategoryBtn");
 const addRecipeBtn = document.getElementById("addRecipeBtn");
+const addOcrBtn = document.getElementById("addOcrBtn");
 const addCancelBtn = document.getElementById("addCancelBtn");
+const ocrFileInput = document.getElementById("ocrFileInput");
+const ocrOverlay = document.getElementById("ocrOverlay");
+const ocrStatus = document.getElementById("ocrStatus");
 
 const recipeTitleInput = document.getElementById("recipeTitleInput");
 const recipeRawText = document.getElementById("recipeRawText");
@@ -115,6 +119,7 @@ let unsubscribeBatches = null;
 let currentBatchId = null;
 let currentBatchEntries = [];    // Tagebucheinträge des gerade geöffneten Batches
 let unsubscribeBatchEntries = null;
+let tesseractWorker = null;
 
 function formatDate(ts) {
   if (!ts || !ts.toDate) return "";
@@ -1253,6 +1258,72 @@ addRecipeBtn.addEventListener("click", () => {
     });
     openRecipe(ref.id);
   });
+});
+
+// --- Rezept-Import per Foto (Texterkennung) ---
+function loadTesseractScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Tesseract) { resolve(); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Erkennungsmodul konnte nicht geladen werden. Internetverbindung prüfen."));
+    document.head.appendChild(script);
+  });
+}
+
+async function getTesseractWorker() {
+  if (tesseractWorker) return tesseractWorker;
+  ocrStatus.textContent = "Erkennungsmodul wird geladen…";
+  await loadTesseractScript();
+  tesseractWorker = await window.Tesseract.createWorker("deu");
+  return tesseractWorker;
+}
+
+addOcrBtn.addEventListener("click", () => {
+  addChoiceOverlay.hidden = true;
+  ocrFileInput.click();
+});
+
+ocrFileInput.addEventListener("change", async () => {
+  const file = ocrFileInput.files[0];
+  ocrFileInput.value = "";
+  if (!file) return;
+
+  ocrStatus.textContent = "Foto wird vorbereitet…";
+  ocrOverlay.hidden = false;
+
+  try {
+    const ocrImage = await compressImage(file, 1600, 0.85);
+    const worker = await getTesseractWorker();
+    ocrStatus.textContent = "Text wird erkannt… Das kann einen Moment dauern.";
+    const result = await worker.recognize(ocrImage);
+    const recognizedText = (result.data.text || "").trim();
+
+    const ref = await addDoc(collection(db, "recipes"), {
+      title: "Neues Rezept aus Foto",
+      rawText: recognizedText,
+      ingredients: [],
+      steps: [],
+      favorite: false,
+      categoryIds: currentParentId() ? [currentParentId()] : [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    const photoImage = await compressImage(file, 1000, 0.7);
+    await addDoc(collection(db, "photos"), {
+      recipeId: ref.id,
+      dataUrl: photoImage,
+      createdAt: serverTimestamp()
+    });
+
+    ocrOverlay.hidden = true;
+    openRecipe(ref.id);
+  } catch (err) {
+    ocrOverlay.hidden = true;
+    alert("Texterkennung fehlgeschlagen: " + err.message);
+  }
 });
 
 // --- Eingabe-Dialog (anlegen/umbenennen) ---

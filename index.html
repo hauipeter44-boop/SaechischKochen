@@ -134,7 +134,16 @@
     <div class="sheet">
       <button id="addCategoryBtn" class="sheet-btn">Neue Kategorie</button>
       <button id="addRecipeBtn" class="sheet-btn">Neues Rezept</button>
+      <button id="addOcrBtn" class="sheet-btn">Rezept aus Foto</button>
       <button id="addCancelBtn" class="sheet-btn cancel">Abbrechen</button>
+    </div>
+  </div>
+
+  <input id="ocrFileInput" type="file" accept="image/*" style="display:none;">
+
+  <div id="ocrOverlay" class="overlay" hidden>
+    <div class="modal" style="text-align:center;">
+      <p id="ocrStatus" style="margin:0;">Text wird erkannt…</p>
     </div>
   </div>
 
