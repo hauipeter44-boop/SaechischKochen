@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kochbuch – Verbindungstest</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #F7F4EE;
+    margin: 0;
+    padding: 32px 20px;
+    color: #2B2A27;
+  }
+  .card {
+    max-width: 420px;
+    margin: 40px auto 0;
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; }
+  p.sub { font-size: 14px; color: #6B6A64; margin: 0 0 20px; }
+  .status { font-size: 15px; line-height: 1.5; padding: 14px 16px; border-radius: 10px; }
+  .pending { background: #F4EFE2; color: #8A6D00; }
+  .ok { background: #E7F3E8; color: #1E6B2E; }
+  .err { background: #FBEAE8; color: #A3341F; }
+  .detail { margin-top: 14px; font-size: 13px; color: #8A8880; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Verbindungstest</h1>
+    <p class="sub">Prüft, ob die App die Datenbank erreicht.</p>
+    <div id="status" class="status pending">Verbinde…</div>
+    <div id="detail" class="detail"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDHr4Kv_m6Zj02H6GBERshvlaohJW-tmeQ",
+      authDomain: "saechsischkochn.firebaseapp.com",
+      projectId: "saechsischkochn",
+      storageBucket: "saechsischkochn.firebasestorage.app",
+      messagingSenderId: "783919966537",
+      appId: "1:783919966537:web:31dced54e0e12010e01298"
+    };
+
+    const statusEl = document.getElementById("status");
+    const detailEl = document.getElementById("detail");
+
+    function setStatus(kind, text) {
+      statusEl.className = "status " + kind;
+      statusEl.textContent = text;
+    }
+
+    async function testConnection() {
+      try {
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const testRef = doc(db, "_verbindungstest", "test");
+        await setDoc(testRef, { zeitpunkt: new Date().toISOString() });
+        const snap = await getDoc(testRef);
+        if (snap.exists()) {
+          setStatus("ok", "Verbindung erfolgreich – die Datenbank ist erreichbar.");
+        } else {
+          setStatus("err", "Schreiben hat geklappt, Lesen nicht. Bitte kurz melden.");
+        }
+      } catch (err) {
+        setStatus("err", "Verbindung fehlgeschlagen.");
+        detailEl.textContent = err.code ? err.code : err.message;
+      }
+    }
+
+    testConnection();
+  </script>
+</body>
+</html>
