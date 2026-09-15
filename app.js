@@ -1,6 +1,6 @@
 import {
   db, auth, signInWithEmailAndPassword, onAuthStateChanged,
-  collection, doc, addDoc, updateDoc, deleteDoc,
+  collection, doc, addDoc, updateDoc, deleteDoc, getDocs,
   onSnapshot, query, orderBy, where, serverTimestamp
 } from "./firebase.js";
 
@@ -65,6 +65,7 @@ const knowledgeView = document.getElementById("knowledgeView");
 const knowledgeListEl = document.getElementById("knowledgeList");
 const knowledgeTypeFilter = document.getElementById("knowledgeTypeFilter");
 const knowledgeSearchInput = document.getElementById("knowledgeSearchInput");
+const exportBtn = document.getElementById("exportBtn");
 
 const tabSearch = document.getElementById("tabSearch");
 const searchView = document.getElementById("searchView");
@@ -596,6 +597,59 @@ function goToCategoryFromSearch(categoryId) {
 }
 
 globalSearchInput.addEventListener("input", renderSearchResults);
+
+// --- Datensicherung ---
+function serializeForExport(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "object" && typeof value.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+  if (Array.isArray(value)) {
+    return value.map(serializeForExport);
+  }
+  if (typeof value === "object") {
+    const result = {};
+    for (const key of Object.keys(value)) {
+      result[key] = serializeForExport(value[key]);
+    }
+    return result;
+  }
+  return value;
+}
+
+exportBtn.addEventListener("click", async () => {
+  const originalLabel = exportBtn.textContent;
+  exportBtn.disabled = true;
+  exportBtn.textContent = "Sichere Daten…";
+  try {
+    const photosSnapshot = await getDocs(collection(db, "photos"));
+    const photosForExport = photosSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const data = serializeForExport({
+      exportedAt: new Date().toISOString(),
+      categories: allCategories,
+      recipes: allRecipes,
+      knowledgeEntries: allEntries,
+      photos: photosForExport
+    });
+
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "kochbuch-sicherung-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert("Sicherung fehlgeschlagen: " + err.message);
+  } finally {
+    exportBtn.disabled = false;
+    exportBtn.textContent = originalLabel;
+  }
+});
 
 // --- Mengenrechner ---
 function parseAmount(str) {
