@@ -88,6 +88,7 @@ const knowledgeListEl = document.getElementById("knowledgeList");
 const knowledgeTypeFilter = document.getElementById("knowledgeTypeFilter");
 const knowledgeSearchInput = document.getElementById("knowledgeSearchInput");
 const exportBtn = document.getElementById("exportBtn");
+const seedStructureBtn = document.getElementById("seedStructureBtn");
 
 const tabSearch = document.getElementById("tabSearch");
 const searchView = document.getElementById("searchView");
@@ -764,6 +765,85 @@ exportBtn.addEventListener("click", async () => {
   } finally {
     exportBtn.disabled = false;
     exportBtn.textContent = originalLabel;
+  }
+});
+
+// --- Standard-Kategoriestruktur ---
+const DEFAULT_CATEGORY_STRUCTURE = [
+  { name: "00 Eingang / Unsortiert" },
+  { name: "01 Backen", children: [
+    "Brot & Brötchen", "Pizza & Fladen", "Kuchen & Tartes",
+    "Patisserie & Feingebäck", "Kekse & Kleingebäck", "Teige & Grundmassen"
+  ] },
+  { name: "02 Kochen", children: [
+    "Vorspeisen & Snacks", "Suppen & Eintöpfe", "Pasta, Reis & Getreide",
+    "Gemüse & Beilagen", "Fleisch", "Fisch & Meeresfrüchte", "Sonstiges"
+  ] },
+  { name: "03 Grundprodukte", children: [
+    "Saucen", "Fonds & Brühen", "Senf", "Essig", "Öle & Fette",
+    "Würzpasten", "Aufstriche", "Gewürzmischungen", "Sirupe & Konzentrate"
+  ] },
+  { name: "04 Fermentation", children: [
+    "Sauerteig", "Kombucha", "Wasserkefir", "Gemüsefermente",
+    "Essigfermentation", "Koji / Miso / Shoyu", "Sonstige Fermente"
+  ] },
+  { name: "05 Konservieren", children: [
+    "Einkochen", "Marmelade & Gelee", "Pickles", "Einlegen", "Trocknen", "Sonstiges"
+  ] },
+  { name: "06 Desserts & Süßes", children: [
+    "Cremes & Pudding", "Eis & Sorbet", "Süßspeisen", "Pralinen & Konfekt", "Sonstiges"
+  ] }
+];
+
+function findCategoryIdByNameAndParent(name, parentId) {
+  const match = allCategories.find(
+    c => c.parentId === parentId && (c.name || "").trim().toLowerCase() === name.trim().toLowerCase()
+  );
+  return match ? match.id : null;
+}
+
+async function createCategoryLocal(name, parentId) {
+  const siblings = allCategories.filter(c => c.parentId === parentId);
+  const maxSort = siblings.reduce((m, c) => Math.max(m, c.sortIndex ?? 0), -1);
+  const ref = await addDoc(collection(db, "categories"), {
+    name,
+    parentId,
+    sortIndex: maxSort + 1,
+    createdAt: serverTimestamp()
+  });
+  allCategories.push({ id: ref.id, name, parentId, sortIndex: maxSort + 1 });
+  return ref.id;
+}
+
+seedStructureBtn.addEventListener("click", async () => {
+  const originalLabel = seedStructureBtn.textContent;
+  seedStructureBtn.disabled = true;
+  seedStructureBtn.textContent = "Lege Struktur an…";
+  try {
+    let created = 0;
+    for (const topLevel of DEFAULT_CATEGORY_STRUCTURE) {
+      let topLevelId = findCategoryIdByNameAndParent(topLevel.name, null);
+      if (!topLevelId) {
+        topLevelId = await createCategoryLocal(topLevel.name, null);
+        created++;
+      }
+      if (topLevel.children) {
+        for (const childName of topLevel.children) {
+          if (!findCategoryIdByNameAndParent(childName, topLevelId)) {
+            await createCategoryLocal(childName, topLevelId);
+            created++;
+          }
+        }
+      }
+    }
+    alert(created > 0
+      ? created + " neue Kategorie(n) angelegt."
+      : "Alle Kategorien waren bereits vorhanden, nichts Neues angelegt.");
+  } catch (err) {
+    alert("Fehler beim Anlegen der Struktur: " + err.message);
+  } finally {
+    seedStructureBtn.disabled = false;
+    seedStructureBtn.textContent = originalLabel;
   }
 });
 
