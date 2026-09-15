@@ -7,6 +7,18 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <h1>Kochbuch</h1>
+      <p class="login-sub">Melde dich an, um fortzufahren.</p>
+      <input id="loginEmail" type="email" placeholder="E-Mail" autocomplete="username" class="login-input">
+      <input id="loginPassword" type="password" placeholder="Passwort" autocomplete="current-password" class="login-input">
+      <button id="loginBtn" class="btn-primary">Anmelden</button>
+      <p id="loginError" class="login-error"></p>
+    </div>
+  </div>
+
+  <div id="appRoot" hidden>
   <header class="topbar">
     <button id="backBtn" class="icon-btn" hidden aria-label="Zurück">‹</button>
     <h1 id="pageTitle">Kategorien</h1>
@@ -147,6 +159,8 @@
         <button id="scaleClose" class="btn-primary">Fertig</button>
       </div>
     </div>
+  </div>
+
   </div>
 
   <script type="module" src="app.js"></script>

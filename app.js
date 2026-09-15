@@ -1,7 +1,15 @@
 import {
-  db, collection, doc, addDoc, updateDoc, deleteDoc,
+  db, auth, signInWithEmailAndPassword, onAuthStateChanged,
+  collection, doc, addDoc, updateDoc, deleteDoc,
   onSnapshot, query, orderBy, where, serverTimestamp
 } from "./firebase.js";
+
+const loginScreen = document.getElementById("loginScreen");
+const appRoot = document.getElementById("appRoot");
+const loginEmail = document.getElementById("loginEmail");
+const loginPassword = document.getElementById("loginPassword");
+const loginBtn = document.getElementById("loginBtn");
+const loginError = document.getElementById("loginError");
 
 // --- Elemente ---
 const listEl = document.getElementById("list");
@@ -1034,7 +1042,43 @@ menuDelete.addEventListener("click", async () => {
   }
 });
 
-// --- Start ---
-subscribeCategories();
-subscribeRecipes();
-subscribeEntries();
+// --- Anmeldung ---
+let appStarted = false;
+
+function startApp() {
+  if (appStarted) return;
+  appStarted = true;
+  subscribeCategories();
+  subscribeRecipes();
+  subscribeEntries();
+}
+
+loginBtn.addEventListener("click", async () => {
+  loginError.textContent = "";
+  const email = loginEmail.value.trim();
+  const password = loginPassword.value;
+  if (!email || !password) {
+    loginError.textContent = "Bitte E-Mail und Passwort eingeben.";
+    return;
+  }
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    loginError.textContent = "Anmeldung fehlgeschlagen. E-Mail oder Passwort prüfen.";
+  }
+});
+
+loginPassword.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") loginBtn.click();
+});
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    loginScreen.hidden = true;
+    appRoot.hidden = false;
+    startApp();
+  } else {
+    loginScreen.hidden = false;
+    appRoot.hidden = true;
+  }
+});

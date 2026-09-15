@@ -1,5 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import {
   initializeFirestore,
   persistentLocalCache,
   persistentSingleTabManager,
@@ -26,6 +31,8 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 
+export const auth = getAuth(app);
+
 // Offline-Zwischenspeicher aktivieren: Die App funktioniert dadurch auch ohne
 // Internet und synchronisiert automatisch, sobald wieder Verbindung besteht.
 export const db = initializeFirestore(app, {
@@ -33,6 +40,8 @@ export const db = initializeFirestore(app, {
 });
 
 export {
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
   collection,
   doc,
   addDoc,

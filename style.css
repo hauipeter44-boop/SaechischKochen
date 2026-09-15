@@ -517,6 +517,50 @@ html, body {
   grid-column: 1 / -1;
 }
 
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+
+.login-card h1 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.login-sub {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.login-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.login-error {
+  color: #B3261E;
+  font-size: 13px;
+  margin-top: 12px;
+  min-height: 16px;
+}
+
 .recipe-actions {
   display: flex;
   flex-direction: column;
