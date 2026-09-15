@@ -47,6 +47,13 @@ const entryText = document.getElementById("entryText");
 const entrySave = document.getElementById("entrySave");
 const entryCancel = document.getElementById("entryCancel");
 
+const tabLibrary = document.getElementById("tabLibrary");
+const tabKnowledge = document.getElementById("tabKnowledge");
+const knowledgeView = document.getElementById("knowledgeView");
+const knowledgeListEl = document.getElementById("knowledgeList");
+const knowledgeTypeFilter = document.getElementById("knowledgeTypeFilter");
+const knowledgeSearchInput = document.getElementById("knowledgeSearchInput");
+
 // --- Zustand ---
 let allCategories = [];
 let allRecipes = [];
@@ -58,6 +65,7 @@ let currentRecipeId = null;
 let workingIngredients = []; // { amount, unit, name } – nur während des Bearbeitens
 let workingSteps = [];       // Liste von Text-Strings – nur während des Bearbeitens
 let allEntries = [];         // alle Hinweise/Erfahrungen, live von Firestore
+let activeTab = "library";   // "library" oder "knowledge"
 
 function formatDate(ts) {
   if (!ts || !ts.toDate) return "";
@@ -342,6 +350,97 @@ entrySave.addEventListener("click", async () => {
   });
 });
 
+// --- Tab-Leiste ---
+tabLibrary.addEventListener("click", () => {
+  activeTab = "library";
+  tabLibrary.classList.add("active");
+  tabKnowledge.classList.remove("active");
+  knowledgeView.hidden = true;
+  render();
+});
+
+tabKnowledge.addEventListener("click", () => {
+  activeTab = "knowledge";
+  tabKnowledge.classList.add("active");
+  tabLibrary.classList.remove("active");
+  listEl.hidden = true;
+  recipeView.hidden = true;
+  knowledgeView.hidden = false;
+  backBtn.hidden = true;
+  addBtn.hidden = true;
+  favoriteBtn.hidden = true;
+  titleEl.textContent = "Wissen";
+  renderKnowledgeView();
+});
+
+function renderKnowledgeView() {
+  const typeFilter = knowledgeTypeFilter.value;
+  const searchText = knowledgeSearchInput.value.trim().toLowerCase();
+
+  const filtered = allEntries.filter(e => {
+    if (typeFilter && e.type !== typeFilter) return false;
+    if (searchText && !(e.text || "").toLowerCase().includes(searchText)) return false;
+    return true;
+  });
+
+  knowledgeListEl.innerHTML = "";
+
+  if (filtered.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "entries-empty";
+    empty.textContent = "Keine Einträge gefunden.";
+    knowledgeListEl.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach(entry => {
+    const row = document.createElement("button");
+    row.className = "knowledge-row";
+
+    const header = document.createElement("div");
+    header.className = "entry-header";
+
+    const badge = document.createElement("span");
+    badge.className = "entry-badge";
+    badge.textContent = entry.type || "Hinweis";
+
+    const date = document.createElement("span");
+    date.className = "entry-date";
+    date.textContent = formatDate(entry.createdAt);
+
+    header.appendChild(badge);
+    header.appendChild(date);
+
+    const recipeTitleEl = document.createElement("p");
+    recipeTitleEl.className = "knowledge-recipe-title";
+    recipeTitleEl.textContent = entry.recipeTitle || "Ohne Rezept";
+
+    const text = document.createElement("p");
+    text.className = "entry-text";
+    text.textContent = entry.text;
+
+    row.appendChild(header);
+    row.appendChild(recipeTitleEl);
+    row.appendChild(text);
+
+    row.addEventListener("click", () => goToRecipeFromKnowledge(entry.recipeId));
+
+    knowledgeListEl.appendChild(row);
+  });
+}
+
+function goToRecipeFromKnowledge(recipeId) {
+  activeTab = "library";
+  tabLibrary.classList.add("active");
+  tabKnowledge.classList.remove("active");
+  knowledgeView.hidden = true;
+  path = [{ id: null, name: "Kategorien" }];
+  openRecipe(recipeId);
+}
+
+knowledgeTypeFilter.addEventListener("change", renderKnowledgeView);
+knowledgeSearchInput.addEventListener("input", renderKnowledgeView);
+
 // --- Rezept-Ansicht ---
 function openRecipe(id) {
   const recipe = allRecipes.find(r => r.id === id);
@@ -437,6 +536,7 @@ function subscribeEntries() {
   onSnapshot(q, (snapshot) => {
     allEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     if (viewState === "recipe") renderEntries();
+    if (activeTab === "knowledge") renderKnowledgeView();
   });
 }
 

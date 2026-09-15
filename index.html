@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Kochbuch</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -41,6 +41,28 @@
       <button id="recipeDeleteBtn" class="btn-danger">Rezept löschen</button>
     </div>
   </main>
+
+  <main id="knowledgeView" class="knowledge-view" hidden>
+    <div class="knowledge-filters">
+      <select id="knowledgeTypeFilter" class="entry-type-select">
+        <option value="">Alle Arten</option>
+        <option value="Hinweis">Hinweis</option>
+        <option value="Erfahrung">Erfahrung</option>
+        <option value="Fehler">Fehler</option>
+        <option value="Verbesserung">Verbesserung</option>
+        <option value="Variante">Variante</option>
+        <option value="Merken">Merken</option>
+        <option value="Experiment">Experiment</option>
+      </select>
+      <input id="knowledgeSearchInput" type="text" class="knowledge-search" placeholder="Suche…">
+    </div>
+    <div id="knowledgeList" class="knowledge-list"></div>
+  </main>
+
+  <nav class="tabbar">
+    <button id="tabLibrary" class="tab-btn active">Bibliothek</button>
+    <button id="tabKnowledge" class="tab-btn">Wissen</button>
+  </nav>
 
   <div id="modalOverlay" class="overlay" hidden>
     <div class="modal">
