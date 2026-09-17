@@ -166,6 +166,49 @@ function currentParentId() {
   return path[path.length - 1].id;
 }
 
+function createEmptyState(className, icon, text) {
+  const p = document.createElement("p");
+  p.className = className;
+  const iconSpan = document.createElement("span");
+  iconSpan.className = "empty-icon";
+  iconSpan.textContent = icon;
+  p.appendChild(iconSpan);
+  p.appendChild(document.createTextNode(text));
+  return p;
+}
+
+const CATEGORY_ICON_RULES = [
+  [/eingang|unsortiert/, "📥"],
+  [/brot|sauerteig/, "🍞"],
+  [/kuchen|tarte/, "🍰"],
+  [/patisserie|croissant|feingeb/, "🥐"],
+  [/keks|kleingeb/, "🍪"],
+  [/teig|grundmass/, "🫓"],
+  [/pasta|reis|getreide/, "🍝"],
+  [/suppe|eintopf|fond|brühe/, "🍲"],
+  [/vorspeise|snack/, "🥟"],
+  [/gemüse|beilage/, "🥦"],
+  [/fleisch/, "🥩"],
+  [/fisch|meer/, "🐟"],
+  [/sauce|senf|würz|aufstrich|gewürz|sirup|konzentrat/, "🫙"],
+  [/öl|fett/, "🫒"],
+  [/kombucha/, "🍵"],
+  [/kefir/, "🥛"],
+  [/fermentation|koji|miso|shoyu|ferment/, "🫧"],
+  [/marmelade|gelee/, "🍓"],
+  [/pickle|einlege|einkoch|konservier|trocknen/, "🥒"],
+  [/eis|sorbet/, "🍨"],
+  [/dessert|süß|creme|pudding|praline|konfekt/, "🍮"]
+];
+
+function getCategoryIcon(name) {
+  const n = (name || "").toLowerCase();
+  for (const [pattern, icon] of CATEGORY_ICON_RULES) {
+    if (pattern.test(n)) return icon;
+  }
+  return "📁";
+}
+
 function childrenOf(parentId) {
   return allCategories
     .filter(c => c.parentId === parentId)
@@ -206,10 +249,7 @@ function render() {
   listEl.innerHTML = "";
 
   if (cats.length === 0 && recipes.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "empty";
-    empty.textContent = "Noch nichts hier. Mit + oben rechts eine Kategorie oder ein Rezept anlegen.";
-    listEl.appendChild(empty);
+    listEl.appendChild(createEmptyState("empty", "🍽️", "Noch nichts hier. Mit + oben rechts eine Kategorie oder ein Rezept anlegen."));
     return;
   }
 
@@ -220,12 +260,23 @@ function render() {
     const nameBtn = document.createElement("button");
     nameBtn.className = "row-name";
 
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "row-icon";
+    iconSpan.textContent = getCategoryIcon(cat.name);
+
     const nameSpan = document.createElement("span");
     nameSpan.textContent = cat.name;
+
+    const nameWrap = document.createElement("span");
+    nameWrap.style.display = "flex";
+    nameWrap.style.alignItems = "center";
+    nameWrap.appendChild(iconSpan);
+    nameWrap.appendChild(nameSpan);
+
     const chevron = document.createElement("span");
     chevron.className = "chevron";
     chevron.textContent = "›";
-    nameBtn.appendChild(nameSpan);
+    nameBtn.appendChild(nameWrap);
     nameBtn.appendChild(chevron);
 
     nameBtn.addEventListener("click", () => {
@@ -478,10 +529,7 @@ function renderEntries() {
 
   entriesListEl.innerHTML = "";
   if (normalEntries.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "entries-empty";
-    empty.textContent = "Noch keine Hinweise oder Erfahrungen.";
-    entriesListEl.appendChild(empty);
+    entriesListEl.appendChild(createEmptyState("entries-empty", "📝", "Noch keine Hinweise oder Erfahrungen."));
     return;
   }
 
@@ -601,10 +649,7 @@ function renderKnowledgeView() {
   knowledgeListEl.innerHTML = "";
 
   if (filtered.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "entries-empty";
-    empty.textContent = "Keine Einträge gefunden.";
-    knowledgeListEl.appendChild(empty);
+    knowledgeListEl.appendChild(createEmptyState("entries-empty", "🔍", "Keine Einträge gefunden."));
     return;
   }
 
@@ -661,10 +706,7 @@ function renderSearchResults() {
   searchResultsEl.innerHTML = "";
 
   if (!q) {
-    const hint = document.createElement("p");
-    hint.className = "entries-empty";
-    hint.textContent = "Tippe, um in Rezepten, Zutaten und Hinweisen zu suchen.";
-    searchResultsEl.appendChild(hint);
+    searchResultsEl.appendChild(createEmptyState("entries-empty", "🔎", "Tippe, um in Rezepten, Zutaten und Hinweisen zu suchen."));
     return;
   }
 
@@ -682,10 +724,7 @@ function renderSearchResults() {
   const matchingEntries = allEntries.filter(e => (e.text || "").toLowerCase().includes(q));
 
   if (matchingCategories.length === 0 && matchingRecipes.length === 0 && matchingEntries.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "entries-empty";
-    empty.textContent = "Nichts gefunden.";
-    searchResultsEl.appendChild(empty);
+    searchResultsEl.appendChild(createEmptyState("entries-empty", "🔍", "Nichts gefunden."));
     return;
   }
 
@@ -946,10 +985,7 @@ function renderScaleIngredients(factor) {
   const ingredients = workingIngredients.filter(i => (i.name || "").trim() !== "");
 
   if (ingredients.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "entries-empty";
-    empty.textContent = "Erst Zutaten mit Mengenangabe hinzufügen.";
-    scaleIngredientsListEl.appendChild(empty);
+    scaleIngredientsListEl.appendChild(createEmptyState("entries-empty", "⚖️", "Erst Zutaten mit Mengenangabe hinzufügen."));
     return;
   }
 
@@ -1005,10 +1041,7 @@ function renderPhotos() {
   photosListEl.innerHTML = "";
 
   if (currentPhotos.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "photos-empty";
-    empty.textContent = "Noch keine Fotos.";
-    photosListEl.appendChild(empty);
+    photosListEl.appendChild(createEmptyState("photos-empty", "📷", "Noch keine Fotos."));
     return;
   }
 
@@ -1124,10 +1157,7 @@ function subscribeBatchesForRecipe(recipeId) {
 function renderBatches() {
   batchesListEl.innerHTML = "";
   if (currentBatches.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "entries-empty";
-    empty.textContent = "Noch kein Fermentationsbatch gestartet.";
-    batchesListEl.appendChild(empty);
+    batchesListEl.appendChild(createEmptyState("entries-empty", "🫙", "Noch kein Fermentationsbatch gestartet."));
     return;
   }
   currentBatches.forEach(batch => {
@@ -1206,10 +1236,7 @@ function subscribeBatchEntries(batchId) {
 function renderBatchEntries() {
   batchEntriesListEl.innerHTML = "";
   if (currentBatchEntries.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "entries-empty";
-    empty.textContent = "Noch keine Tagebucheinträge.";
-    batchEntriesListEl.appendChild(empty);
+    batchEntriesListEl.appendChild(createEmptyState("entries-empty", "📔", "Noch keine Tagebucheinträge."));
     return;
   }
   currentBatchEntries.forEach(entry => {
@@ -1373,10 +1400,7 @@ function subscribeRunsForRecipe(recipeId) {
 function renderRuns() {
   runsListEl.innerHTML = "";
   if (currentRuns.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "entries-empty";
-    empty.textContent = "Noch keine Versuche dokumentiert.";
-    runsListEl.appendChild(empty);
+    runsListEl.appendChild(createEmptyState("entries-empty", "🧪", "Noch keine Versuche dokumentiert."));
     return;
   }
   currentRuns.forEach(run => {
@@ -1544,10 +1568,7 @@ function renderAbleger(recipe) {
   const children = allRecipes.filter(r => r.parentRecipeId === recipe.id);
   ablegerListEl.innerHTML = "";
   if (children.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "entries-empty";
-    empty.textContent = "Noch keine Ableger.";
-    ablegerListEl.appendChild(empty);
+    ablegerListEl.appendChild(createEmptyState("entries-empty", "🌱", "Noch keine Ableger."));
   } else {
     children.forEach(child => {
       const row = document.createElement("button");
