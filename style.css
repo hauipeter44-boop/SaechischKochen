@@ -525,6 +525,10 @@ html, body {
   padding: 20px;
 }
 
+.login-screen[hidden] {
+  display: none;
+}
+
 .login-card {
   width: 100%;
   max-width: 360px;
