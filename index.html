@@ -70,7 +70,10 @@
     <div id="ingredientsList" class="ingredients-list"></div>
     <button id="addIngredientBtn" class="btn-add">+ Zutat hinzufügen</button>
 
-    <label class="field-label" style="margin-top:20px;">Zubereitung</label>
+    <div class="section-header" style="margin-top:20px;">
+      <label class="field-label" style="margin:0;">Zubereitung</label>
+      <button id="startCookModeBtn" class="scale-open-btn">🍳 Kochmodus</button>
+    </div>
     <div id="stepsList" class="steps-list"></div>
     <button id="addStepBtn" class="btn-add">+ Schritt hinzufügen</button>
 
@@ -92,7 +95,10 @@
     </div>
     <div id="runsListEl" class="entries-list"></div>
 
-    <label class="field-label" style="margin-top:20px;">Fermentation</label>
+    <div class="section-header" style="margin-top:20px;">
+      <label class="field-label" style="margin:0;">Fermentation</label>
+      <button id="compareOpenBtn" class="scale-open-btn" hidden>Batches vergleichen</button>
+    </div>
     <div id="batchesList" class="entries-list"></div>
     <button id="addBatchBtn" class="btn-add">+ Neuen Batch starten</button>
 
@@ -117,6 +123,32 @@
     <label class="field-label">Tagebuch</label>
     <div id="batchEntriesList" class="entries-list"></div>
     <button id="addBatchEntryBtn" class="btn-add">+ Tagebucheintrag hinzufügen</button>
+  </main>
+
+  <main id="cookModeView" class="cook-mode" hidden>
+    <div class="cook-header">
+      <button id="cookExitBtn" class="icon-btn" aria-label="Kochmodus beenden">✕</button>
+      <span id="cookProgress" class="cook-progress"></span>
+    </div>
+    <div class="cook-body">
+      <p id="cookStepNumber" class="cook-step-number"></p>
+      <p id="cookStepText" class="cook-step-text"></p>
+      <div id="cookTimerArea" class="cook-timer-area"></div>
+    </div>
+    <div class="cook-nav">
+      <button id="cookPrevBtn" class="btn-secondary">Zurück</button>
+      <button id="cookNextBtn" class="btn-primary">Weiter</button>
+    </div>
+  </main>
+
+  <main id="compareView" class="recipe-view" hidden>
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2 style="margin:0; font-family:var(--font-display); font-size:19px;">Batches vergleichen</h2>
+      <button id="compareCloseBtn" class="scale-open-btn">Schließen</button>
+    </div>
+    <div class="compare-scroll">
+      <table id="compareTable" class="compare-table"></table>
+    </div>
   </main>
 
   <main id="knowledgeView" class="knowledge-view" hidden>
@@ -176,7 +208,21 @@
       <button id="addCategoryBtn" class="sheet-btn">Neue Kategorie</button>
       <button id="addRecipeBtn" class="sheet-btn">Neues Rezept</button>
       <button id="addOcrBtn" class="sheet-btn">Rezept aus Foto</button>
+      <button id="addTemplateBtn" class="sheet-btn">Rezept aus Vorlage einfügen</button>
       <button id="addCancelBtn" class="sheet-btn cancel">Abbrechen</button>
+    </div>
+  </div>
+
+  <div id="templateOverlay" class="overlay" hidden>
+    <div class="modal scale-modal">
+      <h2>Rezept aus Vorlage einfügen</h2>
+      <p class="login-sub" style="text-align:left; margin-bottom:12px;">Füge hier die JSON-Antwort einer KI ein.</p>
+      <textarea id="templateInput" class="entry-textarea" style="min-height:220px;" placeholder='{"title": "...", "ingredients": [...], "steps": [...]}'></textarea>
+      <p id="templateError" class="login-error"></p>
+      <div class="modal-actions">
+        <button id="templateCancelBtn" class="btn-secondary">Abbrechen</button>
+        <button id="templateApplyBtn" class="btn-primary">Übernehmen</button>
+      </div>
     </div>
   </div>
 

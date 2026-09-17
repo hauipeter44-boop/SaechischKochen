@@ -36,10 +36,32 @@ const addChoiceOverlay = document.getElementById("addChoiceOverlay");
 const addCategoryBtn = document.getElementById("addCategoryBtn");
 const addRecipeBtn = document.getElementById("addRecipeBtn");
 const addOcrBtn = document.getElementById("addOcrBtn");
+const addTemplateBtn = document.getElementById("addTemplateBtn");
 const addCancelBtn = document.getElementById("addCancelBtn");
 const ocrFileInput = document.getElementById("ocrFileInput");
 const ocrOverlay = document.getElementById("ocrOverlay");
 const ocrStatus = document.getElementById("ocrStatus");
+
+const templateOverlay = document.getElementById("templateOverlay");
+const templateInput = document.getElementById("templateInput");
+const templateError = document.getElementById("templateError");
+const templateCancelBtn = document.getElementById("templateCancelBtn");
+const templateApplyBtn = document.getElementById("templateApplyBtn");
+
+const startCookModeBtn = document.getElementById("startCookModeBtn");
+const cookModeView = document.getElementById("cookModeView");
+const cookExitBtn = document.getElementById("cookExitBtn");
+const cookProgress = document.getElementById("cookProgress");
+const cookStepNumber = document.getElementById("cookStepNumber");
+const cookStepText = document.getElementById("cookStepText");
+const cookTimerArea = document.getElementById("cookTimerArea");
+const cookPrevBtn = document.getElementById("cookPrevBtn");
+const cookNextBtn = document.getElementById("cookNextBtn");
+
+const compareOpenBtn = document.getElementById("compareOpenBtn");
+const compareView = document.getElementById("compareView");
+const compareCloseBtn = document.getElementById("compareCloseBtn");
+const compareTable = document.getElementById("compareTable");
 
 const recipeTitleInput = document.getElementById("recipeTitleInput");
 const recipeRawText = document.getElementById("recipeRawText");
@@ -157,6 +179,12 @@ let unsubscribeRuns = null;
 let editingRunId = null;
 let workingRunMeasurements = []; // { label, value } – nur während des Bearbeitens eines Versuchs
 
+let cookSteps = [];
+let cookStepIndex = 0;
+let cookWakeLock = null;
+let cookTimerInterval = null;
+let cookTimerEndTime = null;
+
 function formatDate(ts) {
   if (!ts || !ts.toDate) return "";
   return ts.toDate().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -234,6 +262,10 @@ function render() {
   if (unsubscribeBatches) { unsubscribeBatches(); unsubscribeBatches = null; }
   if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
   if (unsubscribeRuns) { unsubscribeRuns(); unsubscribeRuns = null; }
+  clearInterval(cookTimerInterval);
+  if (cookWakeLock) { cookWakeLock.release().catch(() => {}); cookWakeLock = null; }
+  cookModeView.hidden = true;
+  compareView.hidden = true;
   viewState = "list";
   currentRecipeId = null;
   recipeView.hidden = true;
@@ -578,6 +610,10 @@ function hideAllViews() {
   if (unsubscribeBatches) { unsubscribeBatches(); unsubscribeBatches = null; }
   if (unsubscribeBatchEntries) { unsubscribeBatchEntries(); unsubscribeBatchEntries = null; }
   if (unsubscribeRuns) { unsubscribeRuns(); unsubscribeRuns = null; }
+  clearInterval(cookTimerInterval);
+  if (cookWakeLock) { cookWakeLock.release().catch(() => {}); cookWakeLock = null; }
+  cookModeView.hidden = true;
+  compareView.hidden = true;
   listEl.hidden = true;
   recipeView.hidden = true;
   knowledgeView.hidden = true;
@@ -1156,6 +1192,7 @@ function subscribeBatchesForRecipe(recipeId) {
 
 function renderBatches() {
   batchesListEl.innerHTML = "";
+  compareOpenBtn.hidden = currentBatches.length < 2;
   if (currentBatches.length === 0) {
     batchesListEl.appendChild(createEmptyState("entries-empty", "🫙", "Noch kein Fermentationsbatch gestartet."));
     return;
@@ -1524,6 +1561,193 @@ runDeleteBtn.addEventListener("click", async () => {
   }
 });
 
+// --- Kochmodus ---
+function extractDurationMinutes(text) {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  let totalMinutes = 0;
+  let found = false;
+
+  const hourMatch = t.match(/(\d+[.,]?\d*)\s*(stunden?|std\.?|h\b)/);
+  if (hourMatch) {
+    totalMinutes += parseFloat(hourMatch[1].replace(",", ".")) * 60;
+    found = true;
+  }
+  const minMatch = t.match(/(\d+[.,]?\d*)\s*(minuten?|min\.?)/);
+  if (minMatch) {
+    totalMinutes += parseFloat(minMatch[1].replace(",", "."));
+    found = true;
+  }
+  return found ? Math.round(totalMinutes) : null;
+}
+
+startCookModeBtn.addEventListener("click", async () => {
+  const recipe = allRecipes.find(r => r.id === currentRecipeId);
+  if (!recipe || !recipe.steps || recipe.steps.length === 0) {
+    alert("Dieses Rezept hat noch keine Zubereitungsschritte.");
+    return;
+  }
+  cookSteps = recipe.steps;
+  cookStepIndex = 0;
+  recipeView.hidden = true;
+  cookModeView.hidden = false;
+  renderCookStep();
+
+  try {
+    if ("wakeLock" in navigator) {
+      cookWakeLock = await navigator.wakeLock.request("screen");
+    }
+  } catch (err) {
+    cookWakeLock = null;
+  }
+});
+
+function renderCookStep() {
+  clearInterval(cookTimerInterval);
+  cookProgress.textContent = (cookStepIndex + 1) + " / " + cookSteps.length;
+  cookStepNumber.textContent = "Schritt " + (cookStepIndex + 1);
+  cookStepText.textContent = cookSteps[cookStepIndex];
+  cookPrevBtn.disabled = cookStepIndex === 0;
+  cookNextBtn.textContent = cookStepIndex === cookSteps.length - 1 ? "Fertig" : "Weiter";
+
+  cookTimerArea.innerHTML = "";
+  const minutes = extractDurationMinutes(cookSteps[cookStepIndex]);
+  if (minutes && minutes > 0) {
+    const btn = document.createElement("button");
+    btn.className = "cook-timer-btn";
+    btn.textContent = "⏱ " + minutes + " Min. Timer starten";
+    btn.addEventListener("click", () => startCookTimer(minutes));
+    cookTimerArea.appendChild(btn);
+  }
+}
+
+function startCookTimer(minutes) {
+  clearInterval(cookTimerInterval);
+  cookTimerEndTime = Date.now() + minutes * 60 * 1000;
+  renderCookTimerCountdown();
+  cookTimerInterval = setInterval(renderCookTimerCountdown, 1000);
+}
+
+function renderCookTimerCountdown() {
+  const remainingMs = cookTimerEndTime - Date.now();
+  cookTimerArea.innerHTML = "";
+  if (remainingMs <= 0) {
+    clearInterval(cookTimerInterval);
+    const done = document.createElement("p");
+    done.className = "cook-timer-done";
+    done.textContent = "⏰ Fertig!";
+    cookTimerArea.appendChild(done);
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    return;
+  }
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const mm = Math.floor(totalSeconds / 60);
+  const ss = totalSeconds % 60;
+  const display = document.createElement("p");
+  display.className = "cook-timer-display";
+  display.textContent = mm + ":" + String(ss).padStart(2, "0");
+  cookTimerArea.appendChild(display);
+}
+
+cookPrevBtn.addEventListener("click", () => {
+  if (cookStepIndex > 0) {
+    cookStepIndex--;
+    renderCookStep();
+  }
+});
+
+cookNextBtn.addEventListener("click", () => {
+  if (cookStepIndex < cookSteps.length - 1) {
+    cookStepIndex++;
+    renderCookStep();
+  } else {
+    exitCookMode();
+  }
+});
+
+async function exitCookMode() {
+  clearInterval(cookTimerInterval);
+  if (cookWakeLock) {
+    try { await cookWakeLock.release(); } catch (err) { /* egal */ }
+    cookWakeLock = null;
+  }
+  cookModeView.hidden = true;
+  recipeView.hidden = false;
+}
+
+cookExitBtn.addEventListener("click", exitCookMode);
+
+// --- Batches vergleichen ---
+compareCloseBtn.addEventListener("click", () => {
+  compareView.hidden = true;
+  recipeView.hidden = false;
+});
+
+compareOpenBtn.addEventListener("click", async () => {
+  const batchIds = currentBatches.map(b => b.id);
+  const allEntriesForCompare = [];
+  for (const batchId of batchIds) {
+    const snap = await getDocs(query(collection(db, "fermentationEntries"), where("batchId", "==", batchId)));
+    snap.docs.forEach(d => allEntriesForCompare.push({ id: d.id, batchId, ...d.data() }));
+  }
+
+  const labelSet = new Set();
+  allEntriesForCompare.forEach(e => (e.measurements || []).forEach(m => labelSet.add(m.label)));
+  const labels = Array.from(labelSet);
+
+  renderCompareTable(labels, allEntriesForCompare);
+  recipeView.hidden = true;
+  compareView.hidden = false;
+});
+
+function renderCompareTable(labels, allEntriesForCompare) {
+  compareTable.innerHTML = "";
+
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  headRow.appendChild(document.createElement("th"));
+  currentBatches.forEach(b => {
+    const th = document.createElement("th");
+    th.textContent = "Batch #" + b.batchNumber;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  compareTable.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+
+  function addRow(label, valueFn) {
+    const tr = document.createElement("tr");
+    const labelCell = document.createElement("td");
+    labelCell.textContent = label;
+    tr.appendChild(labelCell);
+    currentBatches.forEach(b => {
+      const td = document.createElement("td");
+      td.textContent = valueFn(b);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+
+  addRow("Status", b => b.status || "Aktiv");
+  addRow("Start", b => formatDateStr(b.startDate));
+
+  labels.forEach(label => {
+    addRow(label, (b) => {
+      const values = allEntriesForCompare
+        .filter(e => e.batchId === b.id)
+        .map(e => (e.measurements || []).find(m => m.label === label))
+        .filter(Boolean)
+        .map(m => m.value);
+      return values.length > 0 ? values.join(" → ") : "—";
+    });
+  });
+
+  addRow("Tagebucheinträge", b => allEntriesForCompare.filter(e => e.batchId === b.id).length + "");
+
+  compareTable.appendChild(tbody);
+}
+
 // --- Rezept-Ansicht ---
 function openRecipe(id) {
   const recipe = allRecipes.find(r => r.id === id);
@@ -1819,6 +2043,66 @@ function parseOcrText(text) {
 addOcrBtn.addEventListener("click", () => {
   addChoiceOverlay.hidden = true;
   ocrFileInput.click();
+});
+
+// --- Rezept aus Vorlage (JSON einer KI einfügen) ---
+addTemplateBtn.addEventListener("click", () => {
+  addChoiceOverlay.hidden = true;
+  templateInput.value = "";
+  templateError.textContent = "";
+  templateOverlay.hidden = false;
+});
+
+templateCancelBtn.addEventListener("click", () => {
+  templateOverlay.hidden = true;
+});
+
+templateApplyBtn.addEventListener("click", async () => {
+  const raw = templateInput.value.trim();
+  templateError.textContent = "";
+  if (!raw) {
+    templateInput.focus();
+    return;
+  }
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (err) {
+    templateError.textContent = "Das ist kein gültiges JSON. Bitte die Antwort der KI unverändert einfügen.";
+    return;
+  }
+
+  const title = (data.title || "Neues Rezept aus Vorlage").toString().trim() || "Neues Rezept aus Vorlage";
+
+  const ingredients = Array.isArray(data.ingredients)
+    ? data.ingredients
+        .map(i => ({
+          amount: (i && i.amount !== undefined ? i.amount : "").toString(),
+          unit: (i && i.unit !== undefined ? i.unit : "").toString(),
+          name: (i && i.name !== undefined ? i.name : "").toString().trim()
+        }))
+        .filter(i => i.name !== "")
+    : [];
+
+  const steps = Array.isArray(data.steps)
+    ? data.steps.map(s => (s || "").toString().trim()).filter(s => s !== "")
+    : [];
+
+  templateOverlay.hidden = true;
+
+  const ref = await addDoc(collection(db, "recipes"), {
+    title,
+    rawText: raw,
+    ingredients,
+    steps,
+    tags: [],
+    favorite: false,
+    categoryIds: currentParentId() ? [currentParentId()] : [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  openRecipe(ref.id);
 });
 
 ocrFileInput.addEventListener("change", async () => {
